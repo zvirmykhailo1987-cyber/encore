@@ -1,0 +1,41 @@
+{% extends "console/base.html" %}{% load static %}
+{% block title %}Imports{% endblock %}
+{% block main %}
+<div class="scr ov">
+  <span class="ov-wire" id="ov-wire" aria-hidden="true"><i></i><i></i></span>
+  <div class="ov-side">
+    <section class="n ov-start" aria-labelledby="start-h">
+      <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-file"/></svg><h1 id="start-h">Start an import</h1></div>
+      <form id="start" novalidate>
+        <label class="field-l" for="source">Source file</label>
+        <select id="source" class="inp" disabled><option>Loading files</option></select>
+        <p class="hint" id="source-hint"></p>
+        <label class="check"><input type="checkbox" id="dry"><span><b>Dry run</b> Classifies every row and writes nothing</span></label>
+        <p class="err" id="start-err" role="alert" hidden></p>
+        <div class="acts"><button class="btn p" id="start-btn" type="submit" disabled>Start import</button></div>
+      </form>
+    </section>
+    <section class="n" aria-labelledby="link-h">
+      <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-tower"/></svg><h2 id="link-h">Ticketing connector</h2></div>
+      <div class="kv"><span>Circuit breaker</span><b id="c-breaker">—</b></div>
+      <div class="kv"><span>Cursor lag, items</span><b id="c-lag">—</b></div>
+      <div class="kv"><span>Outbox pending</span><b id="c-outbox">—</b></div>
+      <div class="kv"><span>Dead letters open</span><b id="c-dl">—</b></div>
+      <a class="lnk" href="{% url 'console-integration' %}">Integration health<svg class="ico" aria-hidden="true"><use href="#i-dali"/></svg></a>
+    </section>
+  </div>
+  <section class="n ov-runs" aria-labelledby="runs-h" aria-busy="true" id="runs-node">
+    <div class="nh"><h2 id="runs-h">Import runs</h2><small id="runs-count"></small></div>
+    <div id="runs-loading" data-state="loading" class="skel-wrap" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div id="runs-error" data-state="error" class="state" hidden><svg class="ico lg" aria-hidden="true"><use href="#i-uvaha"/></svg><div><b>The run list did not load.</b><p id="runs-error-t"></p><button data-has-js class="btn" id="runs-retry" type="button">Try again</button></div></div>
+    <div id="runs-empty" data-state="empty" class="state" hidden><svg class="iso xl" aria-hidden="true"><use href="#iso-db"/></svg><div><b>No imports yet.</b><p>Pick a source file on the left. A dry run is a safe first step, because it writes nothing.</p><a class="lnk" href="#source">Choose a source file</a></div></div>
+    <div class="tw" id="runs-wrap" hidden>
+      <table class="tbl">
+        <thead><tr><th scope="col">Run</th><th scope="col">Source</th><th scope="col">Status</th><th scope="col">Source read</th><th scope="col" class="r">Rows read</th><th scope="col" class="r">Created</th><th scope="col" class="r">Quarantined</th><th scope="col">Started</th></tr></thead>
+        <tbody id="runs"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'console/overview.js' %}"></script>{% endblock %}

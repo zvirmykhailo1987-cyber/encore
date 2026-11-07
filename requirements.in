@@ -1,0 +1,10 @@
+Django>=5.2,<5.3
+djangorestframework
+celery[redis]
+redis
+psycopg[binary]
+dj-database-url
+httpx
+gunicorn
+starlette
+uvicorn

@@ -1,0 +1,40 @@
+# The same stack on a machine two levels smaller: every setting halved twice.
+#
+#                       measured before   here
+#   CPU cores (shared)  8                 2
+#   Memory              7.7 GB            2 GB in total, split below
+#   Gunicorn workers    4                 1
+#   Celery concurrency  2                 1 (cannot go lower)
+#
+# All services share cores 0 and 1, as they would on a real small server. The load generator
+# stays on the other cores, so it does not take CPU from the system it measures.
+#
+#   COMPOSE_PATH_SEPARATOR=: COMPOSE_FILE=docker-compose.yml:docker-compose.low.yml docker compose up -d
+services:
+  db:
+    cpuset: "0,1"
+    mem_limit: 768m
+  redis:
+    cpuset: "0,1"
+    mem_limit: 64m
+  migrate:
+    cpuset: "0,1"
+  web:
+    cpuset: "0,1"
+    mem_limit: 384m
+    command: gunicorn encore.wsgi:application --config deploy/gunicorn.conf.py --bind 0.0.0.0:8000 --workers 1 --threads 4
+  worker:
+    cpuset: "0,1"
+    mem_limit: 384m
+    command: celery -A encore worker --loglevel=info --concurrency=1
+  beat:
+    cpuset: "0,1"
+    mem_limit: 96m
+  edge:
+    cpuset: "0,1"
+    mem_limit: 256m
+  mock-ticketing:
+    cpuset: "0,1"
+    mem_limit: 96m
+  k6:
+    cpuset: "2-7"

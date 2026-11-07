@@ -1,0 +1,46 @@
+{% extends "console/base.html" %}{% load static %}
+{% block title %}Quarantine, run {{ run_id }}{% endblock %}
+{% block bodyattrs %} data-run-id="{{ run_id }}"{% endblock %}
+{% block main %}
+<div class="scr">
+  <nav class="crumb st" aria-label="Breadcrumb"><a href="{% url 'console-overview' %}">Imports</a><span aria-hidden="true">/</span><a href="{% url 'console-run' run_id %}">Run {{ run_id }}</a><span aria-hidden="true">/</span><span aria-current="page">Quarantine</span></nav>
+  <div class="qgrid">
+    <section class="n port-r" aria-labelledby="ql-h" id="list-node" aria-busy="true">
+      <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-hatch"/></svg><h1 id="ql-h">Quarantined rows</h1><small id="ql-count"></small></div>
+      <p class="hint" id="q-rule" hidden></p>
+      <div class="filters" id="filters" role="group" aria-label="Filter by reason"></div>
+      <div id="q-loading" data-state="loading" class="skel-wrap" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div id="q-error" data-state="error" class="state" hidden><svg class="ico lg" aria-hidden="true"><use href="#i-uvaha"/></svg><div><b>The rows did not load.</b><p id="q-error-t"></p><button data-has-js class="btn" id="q-retry" type="button">Try again</button></div></div>
+      <div id="q-empty" data-state="empty" class="state" hidden><svg class="iso xl" aria-hidden="true"><use href="#iso-cube"/></svg><div><b id="q-empty-t">No quarantined rows.</b><p id="q-empty-p">Every row in this run passed validation.</p><a class="lnk" href="{% url 'console-run' run_id %}">Back to run {{ run_id }}</a></div></div>
+      <div class="tw" id="q-wrap" hidden>
+        <table class="tbl sel" role="table">
+          <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader" class="r">Row</th><th scope="col" role="columnheader">Reason</th><th scope="col" role="columnheader">Detail</th><th scope="col" role="columnheader">Status</th></tr></thead>
+          <tbody id="q-rows" role="rowgroup"></tbody>
+        </table>
+      </div>
+      <nav class="pager" id="pager" aria-label="Pages of quarantined rows" hidden>
+        <span class="m" id="pg-range" aria-live="polite"></span>
+        <span class="pg-btns">
+          <button data-has-js class="btn" id="pg-first" type="button">First</button>
+          <button data-has-js class="btn" id="pg-prev" type="button">Previous</button>
+          <button data-has-js class="btn" id="pg-next" type="button">Next</button>
+          <button data-has-js class="btn" id="pg-last" type="button">Last</button>
+        </span>
+      </nav>
+    </section>
+    <section class="n port-l insp" id="inspector" aria-labelledby="in-h">
+      <div class="nh"><h2 id="in-h">Row</h2><small id="in-status"></small></div>
+      <div id="in-none" class="state"><svg class="iso xl" aria-hidden="true"><use href="#iso-file"/></svg><div><b>No row selected.</b><p>Choose a row from the list to see what the source file holds and correct it.</p></div></div>
+      <form id="in-form" novalidate hidden>
+        <div class="kv"><span>Reason</span><b id="in-reason"></b></div>
+        <div class="kv"><span>Detail</span><b id="in-detail"></b></div>
+        <h3 class="sub">Values from the source file</h3>
+        <div id="in-fields" class="flds"></div>
+        <p class="err" id="in-err" role="alert" hidden></p>
+        <div class="acts"><button class="btn p" id="in-retry" type="submit">Correct and retry</button><button data-has-js class="btn" id="in-dismiss" type="button">Dismiss</button></div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'console/quarantine.js' %}"></script>{% endblock %}

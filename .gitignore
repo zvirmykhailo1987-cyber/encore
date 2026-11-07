@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.local.*
+data/*
+!data/.gitkeep
+staticfiles/
+docs/design/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

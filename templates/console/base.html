@@ -1,0 +1,59 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Encore{% endblock %} · Encore console</title>
+<link rel="preload" href="{% static 'console/fonts/geist.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{% static 'console/console.css' %}">
+<script src="{% static 'console/theme.js' %}"></script>
+</head>
+<body data-needs-token="{{ needs_token|yesno:'1,0' }}" data-stale-seconds="{{ stale_seconds }}"{% block bodyattrs %}{% endblock %}>
+{% include "console/_sprite.html" %}
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="{% url 'console-overview' %}" aria-label="Encore, imports">
+    <svg viewBox="0 0 26 18" aria-hidden="true"><path d="M3 9H9L13 3H23" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 9L13 15H23" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="9" r="2.4" fill="var(--accent)"/><circle cx="23" cy="3" r="2.2" fill="currentColor"/><circle cx="23" cy="15" r="2.2" fill="currentColor"/></svg>Encore
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <a href="{% url 'console-overview' %}" {% if nav == 'imports' %}aria-current="page"{% endif %}><svg class="ico" aria-hidden="true"><use href="#i-migratsiya"/></svg>Imports</a>
+    <a href="{% url 'console-integration' %}" {% if nav == 'integration' %}aria-current="page"{% endif %}><svg class="ico" aria-hidden="true"><use href="#i-hab"/></svg>Integration</a>
+    <a href="{% url 'console-benchmarks' %}" {% if nav == 'benchmarks' %}aria-current="page"{% endif %}><svg class="ico" aria-hidden="true"><use href="#i-kpi"/></svg>Load results</a>
+  </nav>
+  <div class="sp"></div>
+  {% if needs_token %}<button data-has-js class="btn ghost" id="token-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-zamok"/></svg><span id="token-state">Operator token</span></button>{% endif %}
+  <button data-has-js class="ib" id="theme-toggle" type="button" aria-label="Switch between light and dark theme"><svg class="ico" aria-hidden="true"><use href="#i-tema"/></svg></button>
+</header>
+<div class="conn" id="conn" role="alert" hidden></div>
+<main id="main" class="field">
+{% block main %}{% endblock %}
+</main>
+<footer class="foot"><span id="updated" aria-live="off"></span><span>{% block footnote %}{% endblock %}</span></footer>
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="confirm" class="dlg" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-body"></p>
+    <div class="acts"><button class="btn" value="no">Cancel</button><button class="btn p" value="yes" id="confirm-yes"></button></div>
+  </form>
+</dialog>
+<dialog id="detail" class="dlg" aria-labelledby="detail-title">
+  <form method="dialog">
+    <h2 id="detail-title">Error from the run</h2>
+    <pre id="detail-body"></pre>
+    <div class="acts"><button class="btn" value="close">Close</button></div>
+  </form>
+</dialog>
+{% if needs_token %}<dialog id="token" class="dlg" aria-labelledby="token-title">
+  <form method="dialog" id="token-form">
+    <h2 id="token-title">Operator token</h2>
+    <p>Writes need the operator token. It stays in this browser tab and is sent only as an Authorization header.</p>
+    <label class="field-l" for="token-input">Token</label>
+    <input id="token-input" class="inp" type="password" autocomplete="off">
+    <div class="acts"><button class="btn" type="button" id="token-cancel">Cancel</button><button class="btn p" value="yes">Use token</button></div>
+  </form>
+</dialog>{% endif %}
+<script src="{% static 'console/core.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,111 @@
+{% extends "console/base.html" %}{% load static %}
+{% block title %}Integration health{% endblock %}
+{% block main %}
+<div id="board-state" data-state="error" class="scr" hidden>
+  <section class="n state-page"><div id="state-body" class="state"></div></section>
+</div>
+<section class="board" id="board" aria-labelledby="ih" aria-busy="true">
+  <h1 id="ih" class="vh">Integration health</h1>
+  <svg class="wires" id="wires" viewBox="0 0 1384 790" aria-hidden="true">
+    <path id="w1" class="w" d="M184 100H216"/><path id="w2" class="w" d="M412 100H444"/><path id="w3" class="w" d="M696 100H728"/>
+    <circle class="port" cx="184" cy="100" r="3.5"/><circle class="port" cx="216" cy="100" r="3.5"/><circle class="port" cx="412" cy="100" r="3.5"/><circle class="port" cx="444" cy="100" r="3.5"/><circle class="port" cx="696" cy="100" r="3.5"/><circle class="port" cx="728" cy="100" r="3.5"/>
+    <path class="w" d="M888 192V236"/><circle class="port" cx="888" cy="192" r="3.5"/><circle class="port" cx="888" cy="236" r="3.5"/>
+    <text class="wl" x="897" y="218">GET /v1/tickets</text>
+    <path class="w" d="M444 236V214H780V192"/><circle class="port" cx="444" cy="236" r="3.5"/><circle class="port" cx="780" cy="192" r="3.5"/>
+    <text class="wl" x="620" y="229" text-anchor="end">POST /v1/checkins</text>
+    <path class="w" d="M286 326H250"/><circle class="port" cx="286" cy="326" r="3.5"/><circle class="port" cx="250" cy="326" r="3.5"/>
+    <path class="w" d="M843 416V434H125V416"/><circle class="port" cx="843" cy="416" r="3.5"/><circle class="port" cx="125" cy="416" r="3.5"/>
+    <text class="wl" x="484" y="428" text-anchor="middle">invalid items</text>
+    <path class="w" d="M1048 100H1084"/><circle class="port" cx="1048" cy="100" r="3.5"/><circle class="port" cx="1084" cy="100" r="3.5"/>
+  </svg>
+  <div class="n g-l" style="--x:0;--y:16;--w:184;--h:168">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-cube"/></svg><h2>Encore workers</h2></div>
+    <div class="bigv" id="req">—</div>
+    <div class="t r400">requests, last 30 min</div>
+    <div class="kv h end" title="Calls the open breaker refused before sending"><span>Never sent</span><b id="rej">—</b></div>
+  </div>
+  <div class="n g-r" style="--x:216;--y:16;--w:196;--h:168">
+    <div class="nh"><h2>Retry and rate limit</h2></div>
+    <div class="kv"><span>Retries, 30 min</span><b id="retries">—</b></div>
+    <div class="kv"><span>Max attempts</span><b id="p-att">—</b></div>
+    <div class="kv"><span>Backoff</span><b id="p-back">—</b></div>
+    <div class="kv"><span>Deadline</span><b id="p-dead">—</b></div>
+    <div class="kv"><span>Rate limit</span><b id="p-rate">—</b></div>
+  </div>
+  <div class="n brk g-l" style="--x:444;--y:0;--w:252;--h:200">
+    <h2>Circuit breaker</h2>
+    <div class="state-w" id="b-state">—</div>
+    <svg class="sym" id="sym" viewBox="0 0 232 58" role="img" aria-label="Breaker drawn as a circuit switch"></svg>
+    <p id="b-say"></p>
+    <div class="pips" id="pips" role="img"></div>
+  </div>
+  <div class="n g-r" style="--x:728;--y:8;--w:320;--h:184">
+    <div class="nh tight"><svg class="iso" aria-hidden="true"><use href="#iso-tower"/></svg><h2>Ticketing API</h2><small id="api-note">stand-in</small></div>
+    <div id="res"></div>
+  </div>
+  <div class="n g-l" style="--x:0;--y:236;--w:250;--h:180">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-hatch"/></svg><h2>Dead letters</h2><small><b class="m dlnum" id="dl-n">—</b> open</small></div>
+    <div id="dls"></div>
+    <div class="emp" id="dl-none" hidden><svg class="ico" aria-hidden="true"><use href="#i-uspikh"/></svg><span>None open. Nothing needs a person.</span></div>
+    <div class="acts end" id="dl-actions" hidden><button data-has-js class="btn" id="dl-open" type="button">Review dead letters<svg class="ico" aria-hidden="true"><use href="#i-dali"/></svg></button></div>
+  </div>
+  <div class="n g-r" style="--x:286;--y:236;--w:316;--h:180">
+    <div class="nh"><h2>Check-in outbox</h2><small>at least once</small></div>
+    <div class="bigv" id="ob">—</div>
+    <div class="t r400">pending delivery</div>
+    <div class="kv h end"><span>Dead</span><b id="ob-dead">—</b></div>
+    <div class="kv"><span>Key on every POST</span><b>Idempotency-Key</b></div>
+  </div>
+  <div class="n g-full" style="--x:638;--y:236;--w:410;--h:180">
+    <div class="nh"><h2>Ticket sync</h2><small>Caught up: <span id="caught">—</span></small></div>
+    <div class="lagrow"><div class="bigv" id="lag">—</div><span class="t r400" id="lag-t">items behind the feed</span></div>
+    <div class="lag" id="lag-d" role="img"></div>
+    <div class="kv h end"><span>Cursor / feed head</span><b id="cur">—</b></div>
+    <div class="kv"><span>Applied / stale</span><b id="app">—</b></div>
+  </div>
+  <div class="n g-full" style="--x:0;--y:452;--w:520;--h:328">
+    <div class="nh"><h2>Requests per minute</h2><small id="eq"></small></div>
+    <div class="chart"><svg id="time" role="img" aria-label="Requests per minute by result, last 30 minutes"></svg><p class="chart-e" id="time-e" hidden>No traffic recorded in the last 30 minutes.</p></div>
+  </div>
+  <div class="n g-full" style="--x:536;--y:452;--w:512;--h:328">
+    <div class="nh"><h2>Response latency</h2><small id="pp"></small></div>
+    <div class="chart"><svg id="hist" role="img" aria-label="Latency histogram with fixed buckets, last 30 minutes"></svg><p class="chart-e" id="hist-e" hidden>No responses recorded in the last 30 minutes.</p></div>
+  </div>
+  <div class="n fp g-full" style="--x:1084;--y:16;--w:300;--h:764">
+    <div class="nh"><h2>Demo faults</h2></div>
+    <p>Switch failures on and watch the connector react. This acts on the stand-in API only.</p>
+    <div id="f-off" class="state col" hidden><svg class="ico lg" aria-hidden="true"><use href="#i-uvaha"/></svg><div><b id="f-off-t"></b></div></div>
+    <fieldset id="f-set" disabled>
+      <legend class="vh">Fault settings</legend>
+      <div class="swr"><div><b id="o-l">Outage</b><span>Every call answers 503</span></div><button data-has-js class="sw" type="button" role="switch" id="f-outage" aria-checked="false" aria-labelledby="o-l"></button></div>
+      <div id="f-sliders"></div>
+    </fieldset>
+    <div class="inj">
+      <h3 class="sub">Injected so far</h3>
+      <div id="f-inj" class="injg"></div>
+      <div class="kv h"><span>Calls received</span><b id="f-req">—</b></div>
+      <div class="kv"><span>Check-ins applied once</span><b id="f-se">—</b></div>
+    </div>
+    <div class="acts end"><button data-has-js class="btn" id="f-reset" type="button" disabled><svg class="ico" aria-hidden="true"><use href="#i-skasuvaty"/></svg>Switch all faults off</button></div>
+  </div>
+</section>
+<dialog id="dlg-dl" class="dlg wide" aria-labelledby="dl-title">
+  <div class="dlhead"><h2 id="dl-title">Dead letters</h2><small id="dl-count"></small><button data-has-js class="ib" id="dl-close" type="button" aria-label="Close dead letters"><svg class="ico" aria-hidden="true"><use href="#i-zakryty"/></svg></button></div>
+  <p class="err" id="dl-err" role="alert" hidden></p>
+  <div id="dl-loading" data-state="loading" class="skel-wrap" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div id="dl-empty" data-state="empty" class="state" hidden><svg class="iso xl" aria-hidden="true"><use href="#iso-cube"/></svg><div><b>No open dead letters.</b><p>Nothing needs a person right now.</p><button data-has-js class="btn" id="dl-empty-close" type="button">Back to integration health</button></div></div>
+  <div class="dlgrid" id="dl-body" hidden>
+    <ul class="dllist" id="dl-list" aria-label="Open dead letters"></ul>
+    <div class="dlview">
+      <div class="kv"><span>Kind</span><b id="dv-kind"></b></div>
+      <div class="kv"><span>Created</span><b id="dv-at"></b></div>
+      <h3 class="sub">Reason</h3>
+      <p class="dvr" id="dv-reason"></p>
+      <h3 class="sub">Payload, kept in full</h3>
+      <pre id="dv-payload"></pre>
+      <div class="acts"><button data-has-js class="btn p" id="dv-resolve" type="button">Mark as resolved</button></div>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{% static 'console/integration.js' %}"></script>{% endblock %}

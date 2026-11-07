@@ -1,0 +1,25 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event {{ event }} · Encore</title>
+<link rel="stylesheet" href="{% static 'console/event.css' %}">
+</head>
+<body>
+<main class="event">
+  <p class="eyebrow">Sample event page</p>
+  <h1>{{ event }}</h1>
+  {% if availability.issued %}
+  <dl>
+    <div><dt>Tickets issued</dt><dd>{{ availability.issued }}</dd></div>
+    <div><dt>Valid</dt><dd>{{ availability.valid }}</dd></div>
+    <div><dt>Checked in</dt><dd>{{ availability.checked_in }}</dd></div>
+  </dl>
+  <p class="note">Numbers can be about a second old. That is what lets thousands of people refresh this page at once.</p>
+  {% else %}
+  <p class="note">No tickets for this event yet.</p>
+  {% endif %}
+</main>
+</body>
+</html>

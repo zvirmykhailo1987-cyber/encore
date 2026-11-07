@@ -1,0 +1,113 @@
+{% extends "console/base.html" %}{% load static %}
+{% block title %}Run {{ run_id }}{% endblock %}
+{% block bodyattrs %} data-run-id="{{ run_id }}"{% endblock %}
+{% block main %}
+<div id="board-state" data-state="error" class="scr" hidden>
+  <section class="n state-page"><div id="state-body" class="state"></div></section>
+</div>
+<section class="board" id="board" aria-labelledby="run-title" aria-busy="true">
+  <svg class="wires" id="wires" viewBox="0 0 1384 790" aria-hidden="true">
+    <defs><linearGradient id="rib" x1="0" x2="1"><stop offset="0" stop-color="var(--ribbon)"/><stop offset="1" stop-color="var(--ribbon2)"/></linearGradient></defs>
+    <g id="ribbons"></g>
+    <rect id="readbar" x="604" y="155" width="14" height="150" rx="2"/>
+    <text id="read-l" class="readnum" x="604" y="120">—</text>
+    <text class="readcap" x="604" y="146">rows read</text>
+    <path id="w-src" class="w" d="M212 230H258"/>
+    <path id="w-run" class="w" d="M576 230H604"/>
+    <circle class="port" id="p1" cx="212" cy="230" r="3.5"/><circle class="port" id="p2" cx="258" cy="230" r="3.5"/><circle class="port" id="p3" cx="576" cy="230" r="3.5"/>
+    <path class="w" d="M1062 102H1078 M1062 196H1078 M1062 260H1078 M1062 324H1078 M1062 388H1078 M1078 102V442H1062"/>
+    <path id="w-rec" class="w" d="M1078 270H1110"/>
+    <circle class="port" id="p-rec" cx="1110" cy="270" r="3.5"/>
+    <path id="w-q" class="w-q" d="M812 388V478"/>
+    <circle class="port" cx="812" cy="478" r="3.5"/>
+  </svg>
+
+  <nav class="crumb g-full" aria-label="Breadcrumb"><a href="{% url 'console-overview' %}">Imports</a><span aria-hidden="true">/</span><span aria-current="page">Run {{ run_id }}</span></nav>
+  <div class="runnote g-full" id="note" hidden><svg class="ico" aria-hidden="true"><use href="#i-uvaha"/></svg><span id="note-t"></span><button data-has-js class="lnk-b" id="note-more" type="button" hidden>Full error</button></div>
+
+  <div class="n g-l" style="--x:0;--y:116;--w:212;--h:228">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-file"/></svg><h2>Source file</h2></div>
+    <div class="m srcname" id="f-file">—</div>
+    <div class="kv"><span>Size</span><b id="f-size">—</b></div>
+    <div class="kv"><span>Format</span><b id="f-fmt">—</b></div>
+    <div class="kv"><span>System</span><b id="f-sys">—</b></div>
+    <div class="kv"><span>SHA-256</span><b id="f-sha">—</b></div>
+    <div class="kv wrap"><span>Unmapped</span><b id="f-unm">—</b></div>
+  </div>
+  <span class="tp abs" style="--x:234;--y:230" title="Check 1: source rows vs rows read">1</span>
+
+  <div class="n g-r" style="--x:258;--y:44;--w:318;--h:372">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-cube"/></svg><h1 id="run-title">Import run {{ run_id }}</h1><span class="chips" id="chips"></span></div>
+    <span class="chip hatch dry-tag" id="dry-tag" hidden>Dry run, nothing written</span>
+    <div class="big" id="pct-wrap"><span id="pct">—</span><small id="pct-u">%</small></div>
+    <div class="t" id="pct-of">Source bytes read</div>
+    <div class="dots" id="dots" role="img" aria-label="Share of source bytes read. Each dot is one eightieth of the file."></div>
+    <div class="kv"><span>Checkpoint row</span><b id="ck-row">—</b></div>
+    <div class="kv"><span>Checkpoint byte</span><b id="ck-off">—</b></div>
+    <div class="facts">
+      <div><span>Speed, last batches</span><b id="speed">—</b></div>
+      <div><span>Time left</span><b id="left">—</b></div>
+      <div><span>Batches committed</span><b id="batches">—</b></div>
+      <div><span>Heartbeat</span><b id="hb">—</b></div>
+    </div>
+  </div>
+
+
+  <div class="ladd top g-l" style="--x:826;--y:0;--w:236;--h:36"><span>Rows read</span><b id="a-read">—</b></div>
+  <div class="n onode lg g-l" style="--x:826;--y:44;--w:236;--h:116"><span class="nm"><i class="plus" aria-hidden="true">+</i>Created</span><span class="vl"><span id="a-created">—</span><small id="s-created"></small></span><span class="ds">New contact</span></div>
+  <span class="tp abs" style="--x:1078;--y:102" title="Check 3: contacts written vs created">3</span>
+  <div class="n onode g-l" style="--x:826;--y:168;--w:236;--h:56"><span class="nm"><i class="plus" aria-hidden="true">+</i>Merged</span><span class="vl"><span id="a-merged">—</span><small id="s-merged"></small></span><span class="ds">Linked to existing</span></div>
+  <span class="tp abs" style="--x:1078;--y:196" title="Check 4: aliases written vs created plus merged">4</span>
+  <div class="n onode g-l" style="--x:826;--y:232;--w:236;--h:56"><span class="nm"><i class="plus" aria-hidden="true">+</i>Updated</span><span class="vl"><span id="a-updated">—</span><small id="s-updated"></small></span><span class="ds">New values</span></div>
+  <div class="n onode g-l" style="--x:826;--y:296;--w:236;--h:56"><span class="nm"><i class="plus" aria-hidden="true">+</i>Skipped</span><span class="vl"><span id="a-skipped">—</span><small id="s-skipped"></small></span><span class="ds">Same row hash</span></div>
+  <div class="n onode q g-l" style="--x:826;--y:360;--w:236;--h:56"><span class="nm"><i class="plus" aria-hidden="true">+</i>Quarantined</span><span class="vl"><span id="a-quarantined">—</span><small id="s-quarantined"></small></span><span class="ds">Kept for a person</span></div>
+  <div class="ladd sum g-l" style="--x:826;--y:422;--w:236;--h:42" id="sum-chip">
+    <span class="sumrow"><span><i class="plus" aria-hidden="true">=</i>Sum of outcomes</span><b id="a-sum">—</b></span>
+    <span class="diffrow"><span>Difference from rows read</span><b id="a-diff">—</b></span>
+  </div>
+  <span class="tp abs" style="--x:1078;--y:442" title="Check 2: counters vs rows read">2</span>
+
+  <div class="n g-rec" style="--x:1110;--y:0;--w:274;--h:540" aria-live="off" id="recon">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-db"/></svg><h2>Reconciliation</h2></div>
+    <p class="scope" id="r-scope">Loading</p>
+    <div class="zero" id="r-zero" hidden><div class="nn" id="r-n"></div><div><b id="r-word">discrepancies</b><span id="r-bal"></span></div></div>
+    <div id="r-wait" class="wait" hidden><svg class="ico lg" aria-hidden="true"><use href="#i-den"/></svg><b id="r-wait-t"></b></div>
+    <div class="kv"><span>Source rows</span><b id="r-source">—</b></div>
+    <div class="kv rmb"><span>Rows read</span><b id="r-read">—</b></div>
+    <div class="tpr"><span class="tp">1</span><span>Source rows vs rows read</span><b id="r-c1">—</b></div>
+    <div class="tpr"><span class="tp">2</span><span>Counters vs rows read</span><b id="r-c2">—</b></div>
+    <div class="tpr"><span class="tp">3</span><span>Contacts written vs created</span><b id="r-c3">—</b></div>
+    <div class="tpr"><span class="tp">4</span><span>Aliases written vs created + merged</span><b id="r-c4">—</b></div>
+    <div class="kv h"><span>Missing in target</span><b id="r-miss">—</b></div>
+    <div class="kv"><span>Field mismatches</span><b id="r-mis">—</b></div>
+    <div class="kv"><span>Invalid, not in quarantine</span><b id="r-inv">—</b></div>
+  </div>
+
+  <div class="n g-l" style="--x:1110;--y:556;--w:274;--h:224">
+    <div class="nh"><h2>Worker</h2><small id="w-resume"></small></div>
+    <div class="kv"><span>Status</span><b id="w-status">—</b></div>
+    <div class="kv"><span>Started</span><b id="w-started">—</b></div>
+    <div class="kv"><span>Finished</span><b id="w-finished">—</b></div>
+    <div class="kv"><span>Pause requested</span><b id="w-pause">—</b></div>
+    <div class="acts end" id="actions"></div>
+  </div>
+
+  <div class="n g-full" style="--x:0;--y:446;--w:576;--h:178">
+    <div class="nh"><h2>Throughput</h2><small>rows/s per committed batch</small></div>
+    <div class="chart"><svg id="thr" role="img" aria-label="Rows per second for each committed batch"></svg><p class="chart-e" id="thr-e" hidden>No committed batches yet.</p></div>
+  </div>
+  <div class="n g-full" style="--x:0;--y:636;--w:576;--h:144">
+    <div class="nh tight"><h2>Commit log</h2><small>rows, counters and checkpoint in one transaction</small></div>
+    <ul class="log" id="log"></ul>
+    <p class="chart-e st" id="log-e" hidden>Nothing committed yet.</p>
+  </div>
+  <div class="n g-r" style="--x:612;--y:478;--w:450;--h:302">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-hatch"/></svg><h2>Quarantine</h2><small id="q-open"></small></div>
+    <div id="q-list"></div>
+    <div class="emp" id="q-none" hidden><svg class="ico" aria-hidden="true"><use href="#i-uspikh"/></svg><span id="q-none-t">No open rows.</span></div>
+    <div class="kv h qlatest"><span>Latest row</span><b id="q-last">—</b></div>
+    <div class="acts end"><a class="btn" id="q-link" href="{% url 'console-quarantine' run_id %}">Review quarantined rows<svg class="ico" aria-hidden="true"><use href="#i-dali"/></svg></a></div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'console/run.js' %}"></script>{% endblock %}

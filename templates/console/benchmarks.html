@@ -1,0 +1,108 @@
+{% extends "console/base.html" %}{% load static %}
+{% block title %}Load results{% endblock %}
+{% block main %}
+<div class="scr">
+  {% if error or not results %}
+  <section class="n" aria-labelledby="bh">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-tower"/></svg><h1 id="bh">Load results</h1></div>
+    {% if error %}
+    <div class="state"><svg class="ico lg" aria-hidden="true"><use href="#i-uvaha"/></svg><div><b>The results could not be shown.</b><p>{{ error }}</p></div></div>
+    {% else %}
+    <div class="state big-state"><svg class="iso xl" aria-hidden="true"><use href="#iso-tower"/></svg><div><b>Not measured yet.</b><p>No load test results are recorded. This page shows them once docs/benchmarks.json exists.</p></div></div>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="n lr-head" aria-labelledby="bh">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-tower"/></svg><h1 id="bh">Load results</h1></div>
+    <p class="lr-note"><svg class="ico lg" aria-hidden="true"><use href="#i-uvaha"/></svg><span>One run on a laptop with synthetic data. This is not evidence for production. The k6 load generator runs in the same VM, so a limit shown here can be lower than the system's own limit, because both compete for CPU. Each person refreshes the page about once every {{ results.refresh_seconds }} seconds, and the numbers they see can be about one second old.</span></p>
+    <div class="lr-cmd"><span>Reproduce with</span><code>bash scripts/run_benchmarks.sh --stack-only python scripts/spike_bench.py &lt;name&gt; edge 10000</code>{% if results.not_shown %}<span>{{ results.not_shown }} other result{{ results.not_shown|pluralize }} in the file not shown here.</span>{% endif %}</div>
+  </section>
+
+  <section class="n lr-block" aria-labelledby="bi">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-db"/></svg><h2 id="bi">Import</h2><small>{{ results.import_includes }}</small></div>
+    {% if results.imports %}
+    <div class="lr-two">
+      <div class="lr-chart"><svg id="chart-import" role="img" aria-label="Rows per second for each import size"></svg></div>
+      <table class="tbl">
+        <thead><tr><th scope="col">Rows</th>{% for row in results.imports %}<th scope="col" class="r m strong">{{ row.rows }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for line in results.import_table %}<tr>
+          <th scope="row">{{ line.label }}</th>
+          {% for value in line.values %}<td class="r m nw">{{ value }}{% if line.notes %}<span class="sub-c">{% for note in line.notes %}{% if forloop.counter == forloop.parentloop.counter %}{{ note }}{% endif %}{% endfor %}</span>{% endif %}</td>{% endfor %}
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<p class="hint">No import results in the file.</p>{% endif %}
+    <p class="lr-prov"><b>Machine:</b> {{ results.import_provenance.machine }} · <b>Data:</b> {{ results.import_provenance.data }} · <b>Measured:</b> {{ results.import_provenance.measured }}</p>
+  </section>
+
+  <section class="n lr-block" aria-labelledby="bp">
+    <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-cube"/></svg><h2 id="bp">Fan peak</h2></div>
+    <ol class="flow" aria-label="Path of fan refreshes"><li><b>Fans</b><span class="m">GET /events/&lt;id&gt;</span></li><li class="on"><b>nginx edge</b><span>Copy cached for 1 s</span></li><li><b>Django</b><span>Only when the copy expires</span></li></ol>
+    <ol class="flow" aria-label="Path of gate scans"><li><b>Gates</b><span class="m">POST /api/v1/scans</span></li><li><b>nginx edge</b><span>Passes through, never cached</span></li><li><b>Django</b><span>Every scan</span></li></ol>
+    <p class="lr-prov"><b>Machine:</b> {{ results.peak_provenance.machine }} · <b>Data:</b> {{ results.peak_provenance.data }} · <b>Measured:</b> {{ results.peak_provenance.measured }}</p>
+  </section>
+
+  <section class="n lr-block" aria-labelledby="bf">
+    <div class="nh"><h2 id="bf">Fans refreshing</h2></div>
+    {% if results.fans %}
+    <div class="lr-two">
+      <div class="lr-chart tall"><svg id="chart-fans" role="img" aria-label="Fan response time at p50, p95 and p99 for each run, on a logarithmic scale"></svg></div>
+      <table class="tbl">
+        <thead><tr><th scope="col">Fans</th>{% for col in results.fans.columns %}<th scope="col" class="r"><span class="m strong">{{ col.fans }}</span><span class="sub-c">{{ col.through }}</span></th>{% endfor %}</tr></thead>
+        <tbody>{% for line in results.fans.table %}<tr>
+          <th scope="row">{{ line.label }}{% if line.note %}<span class="sub-c wrap">{{ line.note }}</span>{% endif %}</th>
+          {% for value in line.values %}<td class="r m nw">{{ value }}</td>{% endfor %}
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<p class="hint">No refresh results in the file.</p>{% endif %}
+  </section>
+
+  <section class="n lr-block" aria-labelledby="bg">
+    <div class="nh"><h2 id="bg">Gates scanning while 10,000 fans refresh</h2></div>
+    {% if results.doors %}
+    <p class="lr-sat" id="saturation">{{ results.doors.saturation }}</p>
+    <div class="lr-two">
+      <div class="lr-charts">
+        <div class="lr-chart tall"><svg id="chart-doors" role="img" aria-label="Admitted scans per second against requested scans per second"></svg></div>
+        <div class="lr-chart tall"><svg id="chart-gate" role="img" aria-label="Gate response time at p50, p95 and p99 for each requested rate, on a logarithmic scale"></svg></div>
+      </div>
+      <table class="tbl">
+        <thead><tr><th scope="col">Requested scans per second</th>{% for col in results.doors.columns %}<th scope="col" class="r m strong">{{ col }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for line in results.doors.table %}<tr>
+          <th scope="row">{{ line.label }}{% if line.note %}<span class="sub-c wrap">{{ line.note }}</span>{% endif %}</th>
+          {% for value in line.values %}<td class="r m nw">{{ value }}</td>{% endfor %}
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<p class="hint">No doors-open results in the file.</p>{% endif %}
+  </section>
+
+  <section class="n lr-block" aria-labelledby="bd">
+    <div class="nh"><h2 id="bd">Django stopped during a spike</h2></div>
+    {% if results.stopped %}
+    <div class="lr-two lr-start">
+      <div>
+        <div class="lr-sum">
+          <div><span>Failed, %</span><b>{{ results.stopped.failed }}</b></div>
+          <div><span>Fans</span><b>{{ results.stopped.fans }}</b></div>
+          <div><span>From cache, % (computed)</span><b>{{ results.stopped.from_cache }}</b></div>
+        </div>
+        <div class="kv"><span>Requests</span><b>{{ results.stopped.requests }}</b></div>
+        <div class="kv"><span>Served from cache</span><b>{{ results.stopped.served_from_cache }}</b></div>
+        <div class="kv"><span>Unexpected responses</span><b>{{ results.stopped.unexpected }}</b></div>
+        <div class="kv"><span>p95 / p99, ms</span><b>{{ results.stopped.p95 }} / {{ results.stopped.p99 }}</b></div>
+      </div>
+      <div class="lr-text">
+        <p>Fans saw the last known numbers, because the edge keeps serving its stale copy while Django is down.</p>
+        <p class="lr-warn"><svg class="ico" aria-hidden="true"><use href="#i-uvaha"/></svg><span>Scans at the gates do not work during this time, because they need Django. This follows from the design. The test ran no scans, so it is not a measurement.</span></p>
+      </div>
+    </div>
+    {% else %}<p class="hint">No result for this test in the file.</p>{% endif %}
+  </section>
+  <p class="hint" id="chart-err" data-state="error" role="alert" hidden>The charts did not draw. The tables hold the same numbers.</p>
+  {{ results.chart|json_script:"bench-data" }}
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if results %}<script src="{% static 'console/benchmarks.js' %}"></script>{% endif %}{% endblock %}

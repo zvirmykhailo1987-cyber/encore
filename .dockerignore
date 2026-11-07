@@ -1,0 +1,11 @@
+.venv
+.git
+data
+__pycache__
+.env
+.pytest_cache
+.mypy_cache
+.ruff_cache
+docs/design
+docs/shots
+docs/demo.webm

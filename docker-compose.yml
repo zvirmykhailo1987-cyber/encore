@@ -1,0 +1,110 @@
+x-app: &app
+  build: .
+  environment:
+    # Safe by default: without ENCORE_DEBUG=1 the app needs real secrets and refuses to start without them.
+    ENCORE_DEBUG: ${ENCORE_DEBUG:-0}
+    ENCORE_ALLOWED_HOSTS: ${ENCORE_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    ENCORE_HTTPS: ${ENCORE_HTTPS:-0}
+    ENCORE_SECRET_KEY: ${ENCORE_SECRET_KEY:-}
+    ENCORE_OPERATOR_TOKEN: ${ENCORE_OPERATOR_TOKEN:-}
+    TICKETING_WEBHOOK_SECRET: ${TICKETING_WEBHOOK_SECRET:-}
+    DATABASE_URL: postgres://encore:${POSTGRES_PASSWORD:-encore}@db:5432/encore
+    REDIS_URL: redis://redis:6379/1
+    CELERY_BROKER_URL: redis://redis:6379/0
+    TICKETING_BASE_URL: http://mock-ticketing:8099
+  volumes:
+    - ./data:/app/data
+    - ./docs:/app/docs:ro
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: encore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-encore}
+      POSTGRES_DB: encore
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U encore"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app
+    command: python manage.py migrate --noinput
+    restart: "no"
+
+  web:
+    <<: *app
+    command: gunicorn encore.wsgi:application --config deploy/gunicorn.conf.py --bind 0.0.0.0:8000 --workers 4 --threads 4
+    # Direct access to Django, without the edge, for comparison in measurements.
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: celery -A encore worker --loglevel=info --concurrency=2
+    stop_grace_period: 5s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  beat:
+    <<: *app
+    command: celery -A encore beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  edge:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "127.0.0.1:8000:80"
+    ulimits:
+      nofile: 200000
+    depends_on:
+      - web
+
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: ["load"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./data:/results
+    ulimits:
+      nofile: 200000
+    environment:
+      ENCORE_OPERATOR_TOKEN: ${ENCORE_OPERATOR_TOKEN:-}
+
+  mock-ticketing:
+    build: .
+    command: uvicorn mock_api.app:app --host 0.0.0.0 --port 8099
+    ports:
+      - "127.0.0.1:8099:8099"
+
+volumes:
+  pgdata:

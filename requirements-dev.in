@@ -1,0 +1,7 @@
+pytest
+pytest-django
+ruff
+mypy
+django-stubs
+types-requests
+locust
