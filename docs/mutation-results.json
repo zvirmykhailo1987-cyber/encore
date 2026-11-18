@@ -1,8 +1,44 @@
 {
-  "measured": "2026-11-07",
-  "bugs_injected": 30,
-  "caught": 30,
+  "measured": "2026-11-19",
+  "bugs_injected": 41,
+  "caught": 41,
   "results": [
+    {
+      "bug": "Two objects for one contact: one loses its changes",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_integrity.py::test_a_known_id_changed_in_the_batch_where_another_id_merges_into_it_keeps_its_change"
+    },
+    {
+      "bug": "Rollback ignores a later paused run that wrote rows",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_integrity.py::test_rollback_refuses_while_a_later_paused_run_holds_written_rows"
+    },
+    {
+      "bug": "A card number survives in a row broken for another reason",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_integrity.py::test_a_card_number_in_a_row_with_the_wrong_column_count_is_not_kept"
+    },
+    {
+      "bug": "A gate sees every organizer's tickets",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_a_gate_cannot_see_or_burn_another_organizers_tickets"
+    },
+    {
+      "bug": "Reconciliation trusts the stored fields",
+      "file": "imports/reconcile.py",
+      "caught": true,
+      "caught_by": "tests/test_integrity.py::test_reconciliation_catches_a_field_that_was_not_saved"
+    },
+    {
+      "bug": "A task that started before an outage closes the breaker again",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_integrity.py::test_a_task_that_started_before_an_outage_does_not_close_the_breaker_again"
+    },
     {
       "bug": "One organizer's contacts merge with another's",
       "file": "imports/pipeline.py",
@@ -49,7 +85,7 @@
       "bug": "Rollback undoes a run that later runs built on",
       "file": "imports/pipeline.py",
       "caught": true,
-      "caught_by": "tests/test_import_pipeline.py::test_rollback_refuses_when_a_later_run_exists"
+      "caught_by": "tests/test_integrity.py::test_rollback_refuses_while_a_later_paused_run_holds_written_rows"
     },
     {
       "bug": "A resume accepts a changed source file",
@@ -61,7 +97,7 @@
       "bug": "Reconciliation always reports balanced",
       "file": "imports/reconcile.py",
       "caught": true,
-      "caught_by": "tests/test_import_pipeline.py::test_reconciliation_detects_tampering_after_import"
+      "caught_by": "tests/test_integrity.py::test_reconciliation_catches_a_field_that_was_not_saved"
     },
     {
       "bug": "Reconciliation ignores rows missing from the database",
@@ -148,10 +184,40 @@
       "caught_by": "tests/test_connector.py::test_webhook_signature_rules"
     },
     {
-      "bug": "Anyone can read quarantined personal data",
-      "file": "ticketing/security.py",
+      "bug": "A view with personal data is opened to everyone by mistake",
+      "file": "imports/views.py",
       "caught": true,
-      "caught_by": "tests/test_connector.py::test_dead_letter_list_and_resolve"
+      "caught_by": "tests/test_access.py::test_every_api_route_refuses_a_caller_without_a_key"
+    },
+    {
+      "bug": "An organizer key sees another organizer's runs",
+      "file": "imports/views.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_an_organizer_key_lists_only_its_own_runs"
+    },
+    {
+      "bug": "A gate key reaches platform operations",
+      "file": "access/permissions.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_a_gate_key_scans_but_reads_no_imports_and_runs_no_operations"
+    },
+    {
+      "bug": "A revoked key keeps working",
+      "file": "access/auth.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_unknown_and_revoked_keys_are_refused"
+    },
+    {
+      "bug": "Key guessing is never slowed down",
+      "file": "access/auth.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_a_forged_forwarded_for_header_does_not_reset_the_limit"
+    },
+    {
+      "bug": "Personal-data reads leave no record",
+      "file": "access/audit.py",
+      "caught": true,
+      "caught_by": "tests/test_access.py::test_starting_and_undoing_imports_is_logged"
     },
     {
       "bug": "A 429 opens the circuit breaker",

@@ -213,10 +213,10 @@ MUTATIONS = [
         "if False:",
     ),
     (
-        "An API route answers callers without a key",
-        "encore/settings.py",
-        '"DEFAULT_PERMISSION_CLASSES": ["access.permissions.Authenticated"],',
-        '"DEFAULT_PERMISSION_CLASSES": ["access.permissions.Public"],',
+        "A view with personal data is opened to everyone by mistake",
+        "imports/views.py",
+        "class RunDetailView(APIView):\n    permission_classes = [ImportsAccess]",
+        "class RunDetailView(APIView):\n    permission_classes = []",
     ),
     (
         "An organizer key sees another organizer's runs",
@@ -245,7 +245,7 @@ MUTATIONS = [
     (
         "Personal-data reads leave no record",
         "access/audit.py",
-        "        if who is not None:",
+        "        if who is not None and (self.audited_methods is None or request.method in self.audited_methods):",
         "        if False:",
     ),
     (
