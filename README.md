@@ -10,7 +10,7 @@ Built with Django, PostgreSQL, Celery and Redis. An operator console shows every
 
 ![A finished import run in the console](docs/shots/3-completed.png)
 
-A recording of the whole scenario is in [docs/demo.webm](docs/demo.webm).
+A recording of the whole scenario is in [docs/demo.webm](docs/demo.webm). `dist/Encore-Pack.html`, built by `scripts/build_pack.py`, carries the program, the code and all the material in one file that opens with no server.
 
 ## What it proves
 
@@ -29,28 +29,43 @@ A recording of the whole scenario is in [docs/demo.webm](docs/demo.webm).
 | Django stops during a spike | Fans keep seeing the last known page, with no errors |
 | Clients open connections and send nothing | Real requests are still answered at once |
 | A flood hits Django directly | It answers again as soon as the flood ends |
+| Two organizers have the same customer | Two separate contacts. Each organizer's import is isolated, and they can run side by side |
+| A person asks to be erased during a migration | They are removed, stay out of later runs, and are removed again after a restore |
+| A card number was pasted into a legacy notes field | The row is quarantined with no content kept |
+| Gates lose the network | A gate decides from a downloaded list, and uploads later. Double entries become conflicts for review |
+| A worker pod is killed on Kubernetes | The run resumes by itself from its checkpoint |
 
 ## Measured
 
-One run on a laptop, under Docker Desktop (8 CPUs and 7 GB in the VM), on synthetic data, on 6 November 2026.
+One run on a laptop, under Docker Desktop (8 CPUs and 7 GB in the VM), on synthetic data, on 2026-11-07.
 
 **Import, including hashing and full reconciliation**
 
 | Rows | File | Time | Rows per second | Worker memory, highest sample | Quarantined | Discrepancies |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1,000,000 | 86 MB | 4 min 29 s | 3,724 | 168 MB | 19,761 | 0 |
-| 10,000,000 | 871 MB | 41 min 6 s | 4,055 | 192 MB | 199,602 | 0 |
+| 1,000,000 | 86 MB | 4.5 min | 3,698 | 152 MB | 19,761 | 0 |
+| 10,000,000 | 871 MB | 40.6 min | 4,108 | 167 MB | 199,602 | 0 |
 
 The generator breaks about 2% of the rows on purpose, and those are the quarantined ones. Ten times the data needed about the same memory, because the file is streamed. Memory was sampled every 3 seconds.
+
+**Organizers side by side**
+
+| Organizers at once | Rows each | Rows per second, all together | Discrepancies | Cross-organizer merges |
+|---:|---:|---:|---:|---:|
+| 1 | 250,000 | 3,496 | 0 | 0 |
+| 2 | 250,000 | 6,868 | 0 | 0 |
+| 4 | 250,000 | 9,549 | 0 | 0 |
+
+Results are in `docs/benchmarks-parallel.json`.
 
 **Fans refreshing one event page, each about every 2 seconds, for 60 seconds at the peak, asking for compressed replies as browsers do**
 
 | Fans at once | Path | Requests per second | Failed | p95 | p99 | From cache |
 |---:|---|---:|---:|---:|---:|---:|
-| 5,000 | Django directly | 1,598 | 0% | 1,289 ms | 1,526 ms | 0.0% |
-| 5,000 | Through the edge | 2,099 | 0% | 0.7 ms | 1 ms | 100.0% |
-| 10,000 | Through the edge | 4,186 | 0% | 0.9 ms | 2.9 ms | 100.0% |
-| 20,000 | Through the edge | 8,132 | 0% | 134 ms | 352 ms | 100.0% |
+| 5,000 | Django directly | 1,430 | 0% | 2,481 ms | 3,557 ms | 0.0% |
+| 5,000 | Through the edge | 2,094 | 0% | 0.8 ms | 1.7 ms | 100.0% |
+| 10,000 | Through the edge | 4,196 | 0% | 0.8 ms | 2.1 ms | 100.0% |
+| 20,000 | Through the edge | 8,147 | 0% | 143 ms | 235 ms | 100.0% |
 
 The edge is nginx with a one second cache. The numbers fans see can be about a second old, and in exchange almost none of them reach Python.
 
@@ -58,16 +73,16 @@ The edge is nginx with a one second cache. The numbers fans see can be about a s
 
 | Scans requested per second | Tickets admitted per second | Scans failed | Gate p50 | Gate p95 | Gate p99 |
 |---:|---:|---:|---:|---:|---:|
-| 300 | 300 | 0% | 8.3 ms | 22 ms | 88 ms |
-| 600 | 600 | 0.004% | 19 ms | 143 ms | 356 ms |
-| 1,000 | 816 | 0.015% | 1,180 ms | 1,535 ms | 1,715 ms |
-| 1,500 | 781 | 0.006% | 1,234 ms | 1,629 ms | 1,899 ms |
+| 300 | 300 | 0% | 7.4 ms | 18 ms | 58 ms |
+| 600 | 568 | 0.02% | 39 ms | 1,402 ms | 1,708 ms |
+| 1,000 | 755 | 0.012% | 1,160 ms | 1,865 ms | 2,321 ms |
+| 1,500 | 773 | 0.002% | 1,200 ms | 1,979 ms | 2,267 ms |
 
-Scans saturate at about 781 to 816 per second on this machine: above that they queue. Admitted tickets and outbox messages matched in every run. Scans cannot be cached, so this is the real write limit of this setup. The few failed scans were not investigated.
+Scans saturate at about 755 to 773 per second on this machine: above that they queue. Admitted tickets and outbox messages matched in every run. Scans cannot be cached, so this is the real write limit of this setup. The few failed scans were not investigated.
 
 **Django stopped in the middle of a spike, with 5,000 fans refreshing:** 0 failed requests, because the edge keeps serving the last known page. A page nobody has requested yet has no copy to serve, so it fails until Django returns. Gate scans need Django, so they would stop until it returns. That combination was not measured.
 
-These numbers come from one run per scenario. The load generator shares the machine with the system, which competes for CPU. They show behaviour on a laptop, not production capacity. A real deployment would need a CDN, more than one machine and its own measurements. Your numbers will differ.
+These numbers come from one run per scenario. A first attempt ran while another program was rendering video on the same laptop. Those results were discarded and the runs repeated, with the host's load logged every 30 seconds. The load generator shares the machine with the system, which competes for CPU. They show behaviour on a laptop, not production capacity. A real deployment would need a CDN, more than one machine and its own measurements. Your numbers will differ.
 
 ![Load results in the console](docs/shots/8-load-results.png)
 
@@ -75,19 +90,19 @@ These numbers come from one run per scenario. The load generator shares the mach
 
 | Fans at once | Path | Requests per second | Failed | p95 | p99 | From cache |
 |---:|---|---:|---:|---:|---:|---:|
-| 5,000 | Django directly | 621 | 20.888% | 7,820 ms | 8,989 ms | 0.0% |
-| 5,000 | Through the edge | 2,095 | 0% | 0.9 ms | 1.6 ms | 100.0% |
-| 10,000 | Through the edge | 4,185 | 0% | 1.4 ms | 4.5 ms | 100.0% |
-| 20,000 | Through the edge | 8,193 | 0% | 158 ms | 287 ms | 100.0% |
+| 5,000 | Django directly | 666 | 17.326% | 6,949 ms | 8,986 ms | 0.0% |
+| 5,000 | Through the edge | 2,093 | 0% | 0.8 ms | 1.5 ms | 100.0% |
+| 10,000 | Through the edge | 4,160 | 0% | 72 ms | 168 ms | 100.0% |
+| 20,000 | Through the edge | 7,926 | 0% | 422 ms | 778 ms | 100.0% |
 
 | Scans requested per second | Tickets admitted per second | Scans failed | Gate p50 | Gate p95 | Gate p99 |
 |---:|---:|---:|---:|---:|---:|
-| 75 | 75 | 0.017% | 8.7 ms | 24 ms | 61 ms |
-| 150 | 150 | 0% | 9.3 ms | 31 ms | 102 ms |
-| 300 | 300 | 0.021% | 867 ms | 1,283 ms | 1,339 ms |
-| 600 | 246 | 0.025% | 4,241 ms | 5,409 ms | 6,453 ms |
+| 75 | 75 | 0.017% | 7.5 ms | 20 ms | 64 ms |
+| 150 | 147 | 1.115% | 13 ms | 2,045 ms | 3,487 ms |
+| 300 | 288 | 0.03% | 1,842 ms | 3,729 ms | 3,831 ms |
+| 600 | 295 | 0.064% | 3,523 ms | 3,849 ms | 4,056 ms |
 
-Fans are fine on this machine, as long as they come through the edge. Scans are fast up to about 150 per second, and past about 300 per second they saturate. Importing 1,000,000 rows took 3.7 minutes at 4,505 rows per second with 142 MB of worker memory and 0 discrepancies. It works in one sequential worker, so fewer cores did not slow it in this run. Disk and network were not limited, so a slow disk would change this. The 10,000,000 row import was not repeated here.
+Fans are fine on this machine, as long as they come through the edge. Scans are fast at 75 per second. At 150 per second most are still fast, but the slowest take about two seconds and about 1% fail. They saturate at about 290 per second. Importing 1,000,000 rows took 4.2 minutes at 3,947 rows per second with 140 MB of worker memory and 0 discrepancies. It works in one sequential worker, so fewer cores did not slow it in this run. Disk and network were not limited, so a slow disk would change this. The 10,000,000 row import was not repeated here.
 
 Results are in `docs/benchmarks-low.json`. Reproduce them with `export COMPOSE_PATH_SEPARATOR=: COMPOSE_FILE=docker-compose.yml:docker-compose.low.yml`, then `bash scripts/run_benchmarks.sh --stack-only bash scripts/low_tier_runs.sh`.
 
@@ -114,6 +129,8 @@ Generate a file for the console's start form:
 ```bash
 docker compose exec worker python manage.py gen_legacy --rows 300000 --out data/demo_contacts.csv
 ```
+
+A file named `*.mongoexport.jsonl` is read as mongoexport output.
 
 ## The five minute demo
 
@@ -155,14 +172,19 @@ flowchart LR
 
 - `imports/`: streaming reader, validation, batch pipeline, reconciliation, rollback
 - `ticketing/`: reliability primitives, API client, cursor sync, webhooks, gate scans, outbox
-- `crm/`: contacts and legacy record aliases
+- `crm/`: contacts per organizer, legacy record aliases, the erasure ledger
 - `console/`: the operator screens
 - `mock_api/`: the stand-in ticketing API, with failures you can switch on
 - `deploy/nginx.conf`: the edge cache
+- `deploy/k8s/`: Kubernetes manifests and alert rules
 - `deploy/gunicorn.conf.py`: the worker thread fix described in the decisions
 - `scripts/`: demo scenario and measurements (k6 for spikes)
 
 The reasoning behind each choice, and what it costs, is in [docs/decisions.md](docs/decisions.md). That file also lists the known limits of this version.
+
+Other documents: [migration playbook](docs/migration-playbook.md), [ticketing API](docs/integration-contract.md), [fans and gates](docs/live-events.md), [operations](docs/operations.md), [security and privacy](docs/security-privacy.md), [how I would work](docs/delivery.md), [how this was built](docs/how-it-was-built.md), [an incident review](docs/incident-gunicorn.md), [the API](docs/openapi.yaml).
+
+Evidence: [tests on Linux](docs/test-evidence.json), [injected bugs](docs/mutation-results.json), [a Kubernetes run](docs/k8s-proof.json), [query plans](docs/query-plans.txt).
 
 ## Settings outside debug mode
 
@@ -175,7 +197,7 @@ The reasoning behind each choice, and what it costs, is in [docs/decisions.md](d
 | `ENCORE_HTTPS` | `1` behind a TLS proxy that sets `X-Forwarded-Proto` |
 | `POSTGRES_PASSWORD` | Database password |
 
-Reads are public even with a token, including quarantined rows. This version is for synthetic data only: do not load real customer data into it. Do not expose ports 8001, 8099, 5433 or 6380: the stand-in API has no authentication of its own.
+Reading quarantined rows, dead letters or a gate manifest needs the token too. Other reads are public, and one token sees every organizer. This version is for synthetic data only: do not load real customer data into it. Do not expose ports 8001, 8099, 5433 or 6380: the stand-in API has no authentication of its own.
 
 ## Tests
 
@@ -191,7 +213,9 @@ The tests run against real PostgreSQL. They include killing a real importer proc
 ## What it does not cover
 
 - Operation in production, or at scale beyond one machine
-- Infrastructure beyond Docker Compose
-- User accounts and read protection: only writes are protected, by one operator token
+- Kubernetes beyond one node
+- User accounts and per-organizer access: one operator token covers everything
+- A scanner app: the server side of offline gates is built, the device side is not
+- Checkout, holds, payments and a waiting room
 - Real personal data: there is no access control or retention policy for it
 - Load beyond the measurements above

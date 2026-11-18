@@ -10,3 +10,10 @@ docs/design/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+dist/
+docs/replay.json
+docs/demo-small.webm
+scripts/pack_uk/
+scripts/build_pack_uk.py
+docs/uk/
+docs/shots-uk/

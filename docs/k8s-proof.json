@@ -1,0 +1,42 @@
+{
+  "measured": "2026-11-07",
+  "cluster": "Single-node k3s (rancher/k3s:v1.31.6-k3s1) in Docker Desktop",
+  "deploy_seconds": 40,
+  "pods": [
+    "beat               Running",
+    "db                 Running",
+    "edge               Running",
+    "edge               Running",
+    "migrate            Succeeded",
+    "mock-ticketing     Running",
+    "redis              Running",
+    "web                Running",
+    "web                Running",
+    "worker             Running",
+    "worker-ticketing   Running",
+    ""
+  ],
+  "metrics_from_inside": true,
+  "metrics_through_public_edge": "HTTP/1.1 404 Not Found",
+  "reachable_from_unrelated_pod": "{'db': 'blocked', 'redis': 'blocked', 'web': 'blocked'}",
+  "reachable_from_web_pod": "{'db': 'reachable', 'redis': 'reachable', 'edge': 'reachable'}",
+  "worker_killed": {
+    "rows_in_file": 300000,
+    "checkpoint_row_when_killed": 75000,
+    "seconds_until_finished_after_kill": 227,
+    "resume_count": 1,
+    "resumed_by": "reaper, automatically; no person pressed anything",
+    "rows_read": 300000,
+    "discrepancies": 0,
+    "balanced": true
+  },
+  "rolling_restart_under_traffic": {
+    "rollout_seconds": 17,
+    "requests": 9116,
+    "replies": {
+      "200": 9116
+    },
+    "failed": 0
+  },
+  "workers_after_kill": "1"
+}

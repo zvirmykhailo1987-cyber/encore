@@ -1,0 +1,207 @@
+openapi: 3.1.0
+info:
+  title: Encore API
+  version: 0.1.0
+  description: >
+    The API of this demo. Writes need the operator token. So do reads that can contain personal data.
+    Errors are {"error": "..."}. /metrics, /healthz and /livez are outside this document.
+servers:
+  - url: http://localhost:8000/api/v1
+components:
+  securitySchemes:
+    operatorToken: {type: http, scheme: bearer}
+  schemas:
+    Error:
+      type: object
+      properties: {error: {type: string}}
+    Run:
+      type: object
+      description: One import. Counters always add up to rows_read, enforced by a database constraint.
+      properties:
+        id: {type: integer}
+        organizer: {type: string}
+        source_path: {type: string}
+        source_format: {type: string, enum: [csv, jsonl, mongo]}
+        dry_run: {type: boolean}
+        status: {type: string, enum: [pending, running, interrupted, paused, failed, completed, rolled_back]}
+        rows_read: {type: integer}
+        rows_created: {type: integer}
+        rows_updated: {type: integer}
+        rows_merged: {type: integer}
+        rows_skipped: {type: integer}
+        rows_quarantined: {type: integer}
+        checkpoint_offset: {type: integer, description: Byte offset of the last committed batch}
+        unmapped_columns: {type: array, items: {type: string}}
+        reconciliation: {$ref: "#/components/schemas/Reconciliation"}
+    Reconciliation:
+      type: [object, "null"]
+      properties:
+        source_rows: {type: integer}
+        rows_read: {type: integer}
+        quarantined_rows: {type: integer}
+        erased_rows: {type: integer}
+        missing_in_target: {type: integer}
+        field_mismatches: {type: integer}
+        in_database_not_in_this_file: {type: integer, description: Reported only. Never counted as a discrepancy}
+        discrepancies: {type: integer}
+        balanced: {type: boolean}
+    QuarantineRow:
+      type: object
+      properties:
+        id: {type: integer}
+        row_number: {type: integer}
+        reason: {type: string}
+        detail: {type: string}
+        raw: {type: object, description: Empty for erased subjects and possible card numbers}
+        status: {type: string, enum: [open, resolved, dismissed]}
+    OfflineScan:
+      type: object
+      required: [ticket, scan_id, scanned_at]
+      properties:
+        ticket: {type: string, maxLength: 64}
+        scan_id: {type: string, maxLength: 64, description: Created by the device. Makes an upload safe to repeat}
+        scanned_at: {type: string, format: date-time, description: With a time zone. At most 5 minutes in the future}
+paths:
+  /imports/sources:
+    get:
+      summary: Files that can be imported
+      responses: {"200": {description: Name and size of each file}}
+  /imports/runs:
+    get:
+      summary: Latest 50 runs
+      responses:
+        "200":
+          description: Runs
+          content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Run"}}}}
+    post:
+      summary: Start an import
+      security: [{operatorToken: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source: {type: string, description: "File name inside the source folder. A name ending in .mongoexport.jsonl is read as mongoexport output"}
+                organizer: {type: string, pattern: "^[a-z0-9][a-z0-9_-]{0,39}$", default: demo}
+                dry_run: {type: boolean, default: false}
+      responses:
+        "202": {description: Started}
+        "400": {description: Unknown file or bad organizer}
+        "403": {description: Token missing}
+  /imports/runs/{id}:
+    get:
+      summary: A run, with speed, time left, quarantine summary and recent batches
+      parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+      responses: {"200": {description: Run}, "404": {description: Not found}}
+  /imports/runs/{id}/{action}:
+    post:
+      summary: pause, resume, rollback or reconcile
+      security: [{operatorToken: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+        - {name: action, in: path, required: true, schema: {type: string, enum: [pause, resume, rollback, reconcile]}}
+      responses:
+        "200": {description: Done}
+        "202": {description: Reconciliation started}
+        "409": {description: Not possible in the run's current state}
+  /imports/runs/{id}/quarantine:
+    get:
+      summary: Broken rows, 200 per page, total in X-Total-Count
+      security: [{operatorToken: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+        - {name: reason, in: query, schema: {type: string}}
+        - {name: offset, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: Rows
+          content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/QuarantineRow"}}}}
+        "403": {description: Token missing}
+  /imports/quarantine/{id}/{action}:
+    post:
+      summary: retry with corrections, or dismiss
+      security: [{operatorToken: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+        - {name: action, in: path, required: true, schema: {type: string, enum: [retry, dismiss]}}
+      responses:
+        "200": {description: Done}
+        "409": {description: Already handled, or the run cannot be changed}
+        "422": {description: Still invalid after the correction}
+  /scans:
+    post:
+      summary: A gate online. Admits a ticket once
+      security: [{operatorToken: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket, scan_id]
+              properties: {ticket: {type: string}, scan_id: {type: string, maxLength: 64}}
+      responses:
+        "200": {description: "admitted, also when the same scan is repeated"}
+        "404": {description: unknown_ticket}
+        "409": {description: "already_used, ticket_cancelled or ticket_refunded"}
+        "422": {description: "scan_id_reused: the same id was used for a different ticket"}
+  /scans/offline:
+    post:
+      summary: A gate uploads what it decided while offline
+      security: [{operatorToken: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device, scans]
+              properties:
+                device: {type: string, maxLength: 64}
+                scans: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/OfflineScan"}}
+      responses:
+        "200": {description: "One result per scan: accepted, duplicate_upload, conflict or rejected"}
+        "413": {description: Too many scans}
+  /events/{event}/manifest:
+    get:
+      summary: What a gate downloads before the doors open. No personal data, 5,000 per page
+      security: [{operatorToken: []}]
+      parameters:
+        - {name: event, in: path, required: true, schema: {type: string}}
+        - {name: after, in: query, schema: {type: integer}}
+      responses: {"200": {description: "tickets, and next_after until the last page"}}
+  /events/{event}/availability:
+    get:
+      summary: The read everyone refreshes. Cached for one second at the edge
+      parameters: [{name: event, in: path, required: true, schema: {type: string}}]
+      responses: {"200": {description: "issued, valid, checked_in. Supports ETag"}, "304": {description: Not modified}}
+  /connector/health:
+    get:
+      summary: Breaker, cursor, outbox and call metrics
+      responses: {"200": {description: Health}}
+  /connector/faults:
+    post:
+      summary: Switch failures on the stand-in API. Refused when connected to a real one
+      security: [{operatorToken: []}]
+      responses: {"200": {description: New settings}, "404": {description: Not the stand-in}}
+  /connector/dead-letters:
+    get:
+      summary: Messages that need a person
+      security: [{operatorToken: []}]
+      responses: {"200": {description: Messages}}
+  /connector/dead-letters/{id}/resolve:
+    post:
+      summary: Mark as handled
+      security: [{operatorToken: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+      responses: {"200": {description: Resolved}, "404": {description: Not found or already resolved}}
+  /webhooks/ticketing:
+    post:
+      summary: Ticket updates from the API, signed with HMAC-SHA256 over timestamp.body
+      parameters:
+        - {name: X-Timestamp, in: header, required: true, schema: {type: string}}
+        - {name: X-Signature, in: header, required: true, schema: {type: string}}
+      responses:
+        "200": {description: "applied, duplicate, stale or dead_letter"}
+        "400": {description: Malformed}
+        "401": {description: Bad signature or too old}

@@ -76,9 +76,9 @@ Each entry records what was chosen, why, and what it costs.
 
 ## 13. A one second edge cache for what fans refresh
 
-**Why.** Measured directly, Django saturated at about 1,660 requests per second, with p95 over a second at 5,000 fans. A person refreshing a page does not need numbers fresher than a second, so nginx answers almost all of those requests. `proxy_cache_lock` lets one request through per key, and `proxy_cache_use_stale` keeps the page up while Django is slow or down.
+**Why.** Measured directly, Django served about 1,430 requests per second, with p95 over a second at 5,000 fans. A person refreshing a page does not need numbers fresher than a second, so nginx answers almost all of those requests. `proxy_cache_lock` lets one request through per key, and `proxy_cache_use_stale` keeps the page up while Django is slow or down.
 
-**Cost.** Numbers can be about a second old, or older while Django is down. Nothing that writes can use this: gate scans still reach Django, and they saturate at about 840 per second on the test machine.
+**Cost.** Numbers can be about a second old, or older while Django is down. Nothing that writes can use this: gate scans still reach Django, and they saturate at about 760 per second on the test machine.
 
 ## 14. The edge re-resolves Django's address
 
@@ -92,11 +92,47 @@ Each entry records what was chosen, why, and what it costs.
 
 **Cost.** Gunicorn has no setting for this, so `deploy/gunicorn.conf.py` changes a module constant, and a test fails if the constant moves. A wait of 0 failed 49% of gate scans in a short measurement. The cause of that was not found, so 0.02 is a measured choice rather than an explained one. Gunicorn also closes a connection that stays silent for over 2 seconds, which is fine behind nginx, since nginx sends a request as soon as it connects.
 
-## 16. Known limits of this version
+## 16. Every contact belongs to one organizer
 
-- The outbox holds a row lock during the HTTP call. That is acceptable at demo volume. A production version should claim messages with a lease instead.
+**Why.** A platform with many organizers holds their customers separately. The first version made email unique across the system, so two organizers with one customer would have merged. That joins two businesses' data, and a wrong merge is hard to undo. Uniqueness and every lookup now include the organizer, and one writer per organizer replaces one writer overall, so organizers can run side by side.
+
+**Cost.** The same person at two organizers is two contacts, which is intended. The console still has one operator token, so it does not separate organizers from each other.
+
+Organizers, card number detection, the erasure ledger and the per-organizer reconciliation together made one import slower. On the same laptop, back to back, 1,000,000 rows went at 4,140 rows per second before these changes and 3,467 after, about 16% slower. Several organizers at once more than make up for it (`docs/benchmarks-parallel.json`).
+
+## 17. Imports and ticketing have separate workers
+
+**Why.** A long import held a Celery slot, and two of them could stop ticket sync and check-in delivery altogether. Now they have separate queues.
+
+**Cost.** One more deployment to run.
+
+## 18. A killed worker is the normal way an import stops on Kubernetes
+
+**Why.** An import can run for longer than any grace period. Instead of trying to finish, it relies on what already exists: the checkpoint is durable, the reaper notices silence, and with `ENCORE_IMPORT_AUTO_RESUME` the run restarts itself, up to 5 times so that a crash loop waits for a person.
+
+**Cost.** Up to about 30 seconds of delay, plus redoing the unfinished batch. A deploy interrupts running imports.
+
+## 19. The outbox uses a lease, not a lock
+
+**Why.** Holding a row lock during an HTTP call ties up a database connection for as long as the API is slow. Moving the message's due time forward and committing is enough: if the worker dies, the lease expires and another sends it with the same key.
+
+**Cost.** A message can be sent twice, so the API must honour the idempotency key.
+
+## 20. Rows gone from the source are reported, not deleted
+
+**Why.** A partial file and a mass deletion look the same. Deleting automatically could wipe an organizer. Reconciliation counts them, and a person decides.
+
+**Cost.** Records deleted in the legacy system stay until someone acts.
+
+## 21. Offline gates: the person is already inside
+
+**Why.** A device with no network must decide alone. The server cannot refuse afterwards, so the first upload counts as the check-in, and anything else becomes a conflict for review, including a ticket refunded after the device synced. [Scanners that work offline accept this risk.](https://docs.pretix.eu/en/latest/api/resources/checkin.html)
+
+**Cost.** Two people can get in on one ticket. An organizer who cannot accept that needs an on-site server.
+
+## 22. Known limits of this version
+
 - The breaker's state is shared through the database and loaded per task. It is not updated across workers during a task.
 - Static files are served by Django, which is enough for a demo. A production deployment should use a CDN or a dedicated static file server.
-- Kubernetes is not covered. This has only run under Docker Compose.
-- There is no user management. Writes use one operator token, and reads are public, so real personal data does not belong here.
-- `Retry-After` is read in its seconds form only. The HTTP date form is ignored, and normal backoff applies.
+- Kubernetes has run on one node only, in Docker. See `docs/k8s-proof.json`.
+- There is no user management. One operator token covers writes and reads of personal data, so every operator sees every organizer. Real personal data does not belong here.

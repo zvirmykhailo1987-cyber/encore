@@ -1,0 +1,187 @@
+{
+  "measured": "2026-11-07",
+  "bugs_injected": 30,
+  "caught": 30,
+  "results": [
+    {
+      "bug": "One organizer's contacts merge with another's",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_same_person_at_two_organizers_stays_two_separate_contacts"
+    },
+    {
+      "bug": "A re-run ignores which organizer a legacy id belongs to",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_same_person_at_two_organizers_stays_two_separate_contacts"
+    },
+    {
+      "bug": "The checkpoint does not move with the batch",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_crash_between_batches_resumes_without_duplicates"
+    },
+    {
+      "bug": "A stale worker keeps writing after losing its lease",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_stale_worker_loses_its_lease_and_cannot_write"
+    },
+    {
+      "bug": "The import overwrites a value a person corrected",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_import_does_not_overwrite_curated_field_or_erase_with_blank"
+    },
+    {
+      "bug": "A blank in the source erases a known value",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_import_does_not_overwrite_curated_field_or_erase_with_blank"
+    },
+    {
+      "bug": "An erased person comes back on the next run",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_erased_person_is_not_recreated_by_a_rerun_and_other_organizer_stays"
+    },
+    {
+      "bug": "Rollback undoes a run that later runs built on",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_rollback_refuses_when_a_later_run_exists"
+    },
+    {
+      "bug": "A resume accepts a changed source file",
+      "file": "imports/pipeline.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_resume_refuses_a_changed_source_file"
+    },
+    {
+      "bug": "Reconciliation always reports balanced",
+      "file": "imports/reconcile.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_reconciliation_detects_tampering_after_import"
+    },
+    {
+      "bug": "Reconciliation ignores rows missing from the database",
+      "file": "imports/reconcile.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_reconciliation_detects_tampering_after_import"
+    },
+    {
+      "bug": "Unknown consent becomes a refusal",
+      "file": "imports/mapping.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_unknown_stays_null_not_false_or_blank"
+    },
+    {
+      "bug": "A broken email is accepted",
+      "file": "imports/mapping.py",
+      "caught": true,
+      "caught_by": "tests/test_import_pipeline.py::test_counts_account_for_every_row_and_reconcile"
+    },
+    {
+      "bug": "A late event overwrites a newer version",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_older_version_never_overwrites_newer"
+    },
+    {
+      "bug": "Two gates can admit one ticket",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_scan_outcomes"
+    },
+    {
+      "bug": "A cancelled ticket is admitted",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_scan_outcomes"
+    },
+    {
+      "bug": "A check-in is admitted without its outbox message",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_scan_outcomes"
+    },
+    {
+      "bug": "A duplicate webhook is applied again",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_webhook_duplicate_and_out_of_order"
+    },
+    {
+      "bug": "The outbox lease is gone, so workers double-send",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_worker_dying_mid_call_leaves_a_lease_that_expires_and_sends_the_same_key"
+    },
+    {
+      "bug": "A second offline gate is not reported",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_two_offline_gates_admitting_one_ticket_become_a_conflict_to_review"
+    },
+    {
+      "bug": "A card number pasted into a notes field is imported",
+      "file": "imports/mapping.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_a_card_number_in_any_column_is_quarantined_with_no_content_kept"
+    },
+    {
+      "bug": "A refunded ticket scanned offline counts as a normal entry",
+      "file": "ticketing/services.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_ticket_refunded_after_the_device_synced_becomes_a_conflict_not_a_normal_entry"
+    },
+    {
+      "bug": "A forged webhook is accepted",
+      "file": "ticketing/security.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_webhook_signature_rules"
+    },
+    {
+      "bug": "An old webhook can be replayed",
+      "file": "ticketing/security.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_webhook_signature_rules"
+    },
+    {
+      "bug": "Anyone can read quarantined personal data",
+      "file": "ticketing/security.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_dead_letter_list_and_resolve"
+    },
+    {
+      "bug": "A 429 opens the circuit breaker",
+      "file": "ticketing/client.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_rate_limiting_does_not_trip_the_breaker"
+    },
+    {
+      "bug": "Retry-After is ignored",
+      "file": "ticketing/client.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_retry_after_header_is_honoured"
+    },
+    {
+      "bug": "A permanent 4xx error is retried",
+      "file": "ticketing/client.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_client_errors_are_not_retried"
+    },
+    {
+      "bug": "A check-in can be sent with no idempotency key",
+      "file": "ticketing/client.py",
+      "caught": true,
+      "caught_by": "tests/test_connector.py::test_post_refuses_to_run_without_an_idempotency_key"
+    },
+    {
+      "bug": "Long imports share workers with ticket sync",
+      "file": "encore/settings.py",
+      "caught": true,
+      "caught_by": "tests/test_platform_realities.py::test_imports_and_ticketing_use_separate_queues"
+    }
+  ]
+}

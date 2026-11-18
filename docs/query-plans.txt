@@ -1,0 +1,101 @@
+Query plans, 2026-11-07, on 0 contacts. Synthetic data, laptop.
+
+=== Find contacts by email, once per batch: 5,000 emails at most in real use
+SELECT * FROM crm_contact WHERE organizer = 'demo' AND email = ANY( ARRAY(SELECT email FROM crm_contact WHERE email IS NOT NULL ORDER BY id DESC LIMIT 5000));
+
+Index Scan using contact_email_unique_per_organizer on crm_contact  (cost=23.61..31.49 rows=1 width=162) (actual time=0.022..0.023 rows=0 loops=1)
+  Index Cond: (((organizer)::text = 'demo'::text) AND ((email)::text = ANY (((InitPlan 1).col1)::text[])))
+  Buffers: shared hit=1
+  InitPlan 1
+    ->  Limit  (cost=0.15..23.48 rows=420 width=39) (actual time=0.010..0.010 rows=0 loops=1)
+          Buffers: shared hit=1
+          ->  Index Scan Backward using crm_contact_pkey on crm_contact crm_contact_1  (cost=0.15..23.48 rows=420 width=39) (actual time=0.009..0.009 rows=0 loops=1)
+                Filter: (email IS NOT NULL)
+                Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=203
+Planning Time: 1.815 ms
+Execution Time: 0.090 ms
+
+=== Find aliases by legacy id, once per batch
+SELECT a.*, c.* FROM crm_contactalias a JOIN crm_contact c ON c.id = a.contact_id WHERE a.organizer = 'demo' AND a.src_uid = ANY( ARRAY(SELECT src_uid FROM crm_contactalias ORDER BY id DESC LIMIT 5000));
+
+Nested Loop  (cost=25.70..41.77 rows=1 width=281) (actual time=0.021..0.022 rows=0 loops=1)
+  Buffers: shared hit=1
+  InitPlan 1
+    ->  Limit  (cost=0.15..25.40 rows=550 width=26) (actual time=0.010..0.010 rows=0 loops=1)
+          Buffers: shared hit=1
+          ->  Index Scan Backward using crm_contactalias_pkey on crm_contactalias  (cost=0.15..25.40 rows=550 width=26) (actual time=0.009..0.009 rows=0 loops=1)
+                Buffers: shared hit=1
+  ->  Index Scan using alias_once_per_organizer on crm_contactalias a  (cost=0.15..8.17 rows=1 width=119) (actual time=0.021..0.021 rows=0 loops=1)
+        Index Cond: (((organizer)::text = 'demo'::text) AND ((src_uid)::text = ANY (((InitPlan 1).col1)::text[])))
+        Buffers: shared hit=1
+  ->  Index Scan using crm_contact_pkey on crm_contact c  (cost=0.15..8.17 rows=1 width=162) (never executed)
+        Index Cond: (id = a.contact_id)
+Planning:
+  Buffers: shared hit=355 read=4
+Planning Time: 2.738 ms
+Execution Time: 0.111 ms
+
+=== Quarantine page, deep in the list
+SELECT * FROM imports_quarantinerow WHERE run_id = (SELECT max(id) FROM imports_importrun) ORDER BY row_number LIMIT 200 OFFSET 100000;
+
+Limit  (cost=15.27..15.27 rows=1 width=308) (actual time=0.040..0.041 rows=0 loops=1)
+  Buffers: shared hit=3
+  InitPlan 2
+    ->  Result  (cost=0.34..0.35 rows=1 width=8) (never executed)
+          InitPlan 1
+            ->  Limit  (cost=0.14..0.34 rows=1 width=8) (never executed)
+                  ->  Index Only Scan Backward using imports_importrun_pkey on imports_importrun  (cost=0.14..29.11 rows=150 width=8) (never executed)
+                        Heap Fetches: 0
+  ->  Sort  (cost=14.77..14.92 rows=60 width=308) (actual time=0.039..0.040 rows=0 loops=1)
+        Sort Key: imports_quarantinerow.row_number
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=3
+        ->  Seq Scan on imports_quarantinerow  (cost=0.00..13.00 rows=60 width=308) (actual time=0.003..0.003 rows=0 loops=1)
+              Filter: (run_id = (InitPlan 2).col1)
+Planning:
+  Buffers: shared hit=350 read=9
+Planning Time: 2.292 ms
+Execution Time: 0.092 ms
+
+=== Quarantine summary on the run screen
+SELECT reason, count(*) FROM imports_quarantinerow WHERE run_id = (SELECT max(id) FROM imports_importrun) AND status = 'open' GROUP BY reason;
+
+HashAggregate  (cost=14.25..14.30 rows=5 width=21) (actual time=0.004..0.005 rows=0 loops=1)
+  Group Key: imports_quarantinerow.reason
+  Batches: 1  Memory Usage: 24kB
+  InitPlan 2
+    ->  Result  (cost=0.34..0.35 rows=1 width=8) (never executed)
+          InitPlan 1
+            ->  Limit  (cost=0.14..0.34 rows=1 width=8) (never executed)
+                  ->  Index Only Scan Backward using imports_importrun_pkey on imports_importrun  (cost=0.14..29.11 rows=150 width=8) (never executed)
+                        Heap Fetches: 0
+  ->  Seq Scan on imports_quarantinerow  (cost=0.00..13.60 rows=60 width=13) (actual time=0.003..0.003 rows=0 loops=1)
+        Filter: ((run_id = (InitPlan 2).col1) AND ((status)::text = 'open'::text))
+Planning:
+  Buffers: shared hit=359
+Planning Time: 2.438 ms
+Execution Time: 0.105 ms
+
+=== Contacts per organizer, for the go or no-go report
+SELECT count(*) FROM crm_contact WHERE organizer = 'demo';
+
+Aggregate  (cost=15.25..15.26 rows=1 width=8) (actual time=0.007..0.008 rows=1 loops=1)
+  ->  Seq Scan on crm_contact  (cost=0.00..15.25 rows=1 width=0) (actual time=0.005..0.005 rows=0 loops=1)
+        Filter: ((organizer)::text = 'demo'::text)
+Planning:
+  Buffers: shared hit=142
+Planning Time: 1.086 ms
+Execution Time: 0.053 ms
+
+=== Opt-ins without proof, for the go or no-go report
+SELECT count(*) FROM crm_contact WHERE organizer = 'demo' AND marketing_opt_in AND consent_recorded_at IS NULL;
+
+Aggregate  (cost=15.25..15.26 rows=1 width=8) (actual time=0.007..0.008 rows=1 loops=1)
+  ->  Seq Scan on crm_contact  (cost=0.00..15.25 rows=1 width=0) (actual time=0.005..0.005 rows=0 loops=1)
+        Filter: (marketing_opt_in AND (consent_recorded_at IS NULL) AND ((organizer)::text = 'demo'::text))
+Planning:
+  Buffers: shared hit=145
+Planning Time: 1.205 ms
+Execution Time: 0.051 ms

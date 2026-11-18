@@ -1,0 +1,902 @@
+{
+ "measured": "2026-11-08",
+ "platform": "Python 3.12.16, Linux 6.18.33.2-microsoft-standard-WSL2",
+ "tests": {
+  "total": 141,
+  "passed": 141,
+  "failed": 0,
+  "skipped": 0,
+  "seconds": 62
+ },
+ "checks": {
+  "ruff": true,
+  "mypy": true,
+  "migrations": true,
+  "tests": true
+ },
+ "coverage_percent": 92,
+ "coverage_least": [
+  {
+   "file": "encore/wsgi.py",
+   "percent": 0
+  },
+  {
+   "file": "ticketing/tasks.py",
+   "percent": 0
+  },
+  {
+   "file": "imports/views.py",
+   "percent": 71
+  },
+  {
+   "file": "encore/metrics.py",
+   "percent": 83
+  },
+  {
+   "file": "ticketing/views.py",
+   "percent": 85
+  },
+  {
+   "file": "imports/tasks.py",
+   "percent": 86
+  },
+  {
+   "file": "imports/management/commands/gen_legacy.py",
+   "percent": 87
+  },
+  {
+   "file": "ticketing/services.py",
+   "percent": 88
+  }
+ ],
+ "audit_clean": true,
+ "audit_output": "WARNING:pip_audit._cli:--no-deps is supported, but users are encouraged to fully hash their pinned dependencies\nWARNING:pip_audit._cli:Consider using a tool like `pip-compile`: https://pip-tools.readthedocs.io/en/latest/#using-hashes\nNo known vulnerabilities found",
+ "cases": [
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_older_version_never_overwrites_newer",
+   "state": "passed",
+   "seconds": 0.821
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_upstream_update_keeps_local_checkin",
+   "state": "passed",
+   "seconds": 0.013
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_webhook_duplicate_and_out_of_order",
+   "state": "passed",
+   "seconds": 0.026
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_webhook_endpoint_rejects_bad_signature_and_accepts_good",
+   "state": "passed",
+   "seconds": 0.131
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_scan_outcomes",
+   "state": "passed",
+   "seconds": 0.028
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_metrics_merge_across_workers",
+   "state": "passed",
+   "seconds": 0.183
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_scan_api_requires_the_operator_token_when_one_is_set",
+   "state": "passed",
+   "seconds": 0.015
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_writes_are_closed_outside_debug_when_no_token_is_set",
+   "state": "passed",
+   "seconds": 0.006
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_availability_serves_cache_and_supports_etag",
+   "state": "passed",
+   "seconds": 0.253
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_import_api_cannot_read_outside_the_source_folder",
+   "state": "passed",
+   "seconds": 0.012
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_fault_control_needs_operator_and_refuses_a_real_api",
+   "state": "passed",
+   "seconds": 0.01
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_dead_letter_list_and_resolve",
+   "state": "passed",
+   "seconds": 0.021
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_debug_machine_refuses_writes_from_another_website",
+   "state": "passed",
+   "seconds": 0.016
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_form_posts_are_not_parsed",
+   "state": "passed",
+   "seconds": 0.005
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_nul_byte_in_source_name_is_a_clean_refusal",
+   "state": "passed",
+   "seconds": 0.007
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_security_headers_outside_debug",
+   "state": "passed",
+   "seconds": 0.048
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_event_page_shows_numbers_sets_no_cookie_and_handles_unknown_events",
+   "state": "passed",
+   "seconds": 0.018
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_answer_on_an_empty_database[/]",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_answer_on_an_empty_database[/runs/1]",
+   "state": "passed",
+   "seconds": 0.009
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_answer_on_an_empty_database[/runs/1/quarantine]",
+   "state": "passed",
+   "seconds": 0.007
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_answer_on_an_empty_database[/integration]",
+   "state": "passed",
+   "seconds": 0.006
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_answer_on_an_empty_database[/load-results]",
+   "state": "passed",
+   "seconds": 0.012
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_pages_carry_no_sample_data_and_no_external_host",
+   "state": "passed",
+   "seconds": 0.012
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_the_api_the_console_reads_answers_on_an_empty_database",
+   "state": "passed",
+   "seconds": 0.02
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_a_run_with_zero_rows_has_no_progress_to_divide_by",
+   "state": "passed",
+   "seconds": 0.024
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_load_results_say_not_measured_when_there_is_no_file",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_import_block_shows_the_numbers_from_the_file",
+   "state": "passed",
+   "seconds": 0.015
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_fans_block_compares_no_edge_first_and_computes_the_cache_share",
+   "state": "passed",
+   "seconds": 0.012
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_doors_block_computes_admitted_rate_with_the_ramp",
+   "state": "passed",
+   "seconds": 0.011
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_saturation_is_stated_plainly",
+   "state": "passed",
+   "seconds": 0.01
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_no_saturation_is_not_claimed_when_the_rate_keeps_up",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_unequal_outbox_is_not_shown_as_equal",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_stopped_block_says_scans_need_django_and_were_not_measured",
+   "state": "passed",
+   "seconds": 0.009
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_page_says_what_the_measurement_is",
+   "state": "passed",
+   "seconds": 0.009
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_missing_blocks_and_values_stay_unknown",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_zero_requests_do_not_divide_by_zero",
+   "state": "passed",
+   "seconds": 0.007
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_file_values_are_escaped",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_results_the_page_has_no_block_for_are_declared",
+   "state": "passed",
+   "seconds": 0.009
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_the_committed_results_file_renders",
+   "state": "passed",
+   "seconds": 0.01
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_a_broken_results_file_is_an_error_not_an_empty_page",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_operator_token_is_never_written_into_a_page",
+   "state": "passed",
+   "seconds": 0.007
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_full_sync_under_chaos_matches_the_source_exactly",
+   "state": "passed",
+   "seconds": 0.418
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_sync_stops_at_outage_and_continues_from_the_cursor",
+   "state": "passed",
+   "seconds": 0.395
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_a_worker_with_a_stale_page_does_not_move_the_cursor_back",
+   "state": "passed",
+   "seconds": 0.21
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_same_ticket_scanned_at_many_gates_admits_exactly_one",
+   "state": "passed",
+   "seconds": 0.269
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_outbox_delivers_each_scan_once_through_failures",
+   "state": "passed",
+   "seconds": 0.943
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_outbox_keeps_messages_while_breaker_is_open_without_burning_attempts",
+   "state": "passed",
+   "seconds": 0.195
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_outbox_gives_up_into_dead_letters_and_keeps_the_message",
+   "state": "passed",
+   "seconds": 0.196
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_health_reports_cursor_lag_and_breaker_detail",
+   "state": "passed",
+   "seconds": 0.219
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_counts_account_for_every_row_and_reconcile",
+   "state": "passed",
+   "seconds": 0.257
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_second_run_of_same_file_creates_nothing",
+   "state": "passed",
+   "seconds": 0.287
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_unknown_stays_null_not_false_or_blank",
+   "state": "passed",
+   "seconds": 0.211
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_import_does_not_overwrite_curated_field_or_erase_with_blank",
+   "state": "passed",
+   "seconds": 0.274
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_merge_only_fills_empty_values",
+   "state": "passed",
+   "seconds": 0.202
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_update_to_email_owned_by_someone_else_goes_to_quarantine",
+   "state": "passed",
+   "seconds": 0.252
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_crash_between_batches_resumes_without_duplicates",
+   "state": "passed",
+   "seconds": 0.627
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_failure_inside_a_batch_commits_none_of_that_batch",
+   "state": "passed",
+   "seconds": 0.262
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_killing_a_real_process_then_resuming_loses_and_duplicates_nothing",
+   "state": "passed",
+   "seconds": 34.372
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_stale_worker_loses_its_lease_and_cannot_write",
+   "state": "passed",
+   "seconds": 0.186
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_only_one_write_import_runs_at_a_time",
+   "state": "passed",
+   "seconds": 0.196
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_counter_constraint_rejects_rows_that_vanish",
+   "state": "passed",
+   "seconds": 0.16
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_resume_refuses_a_changed_source_file",
+   "state": "passed",
+   "seconds": 0.189
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_dry_run_writes_no_contacts_and_predicts_the_real_run",
+   "state": "passed",
+   "seconds": 0.876
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_rollback_restores_the_exact_prior_state_and_allows_reimport",
+   "state": "passed",
+   "seconds": 0.33
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_rollback_refuses_when_a_later_run_exists",
+   "state": "passed",
+   "seconds": 0.254
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quarantined_row_can_be_corrected_and_counters_stay_exact",
+   "state": "passed",
+   "seconds": 0.213
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_reconciliation_detects_tampering_after_import",
+   "state": "passed",
+   "seconds": 0.255
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_same_id_twice_in_file_keeps_the_last_version_and_reconciles",
+   "state": "passed",
+   "seconds": 0.276
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_damaged_bytes_and_wrong_column_count_go_to_quarantine",
+   "state": "passed",
+   "seconds": 0.237
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quoted_multiline_offsets_restart_exactly",
+   "state": "passed",
+   "seconds": 0.174
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_unmapped_columns_are_reported_and_missing_required_column_stops_run",
+   "state": "passed",
+   "seconds": 0.266
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_jsonl_source",
+   "state": "passed",
+   "seconds": 0.22
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_rollback_restores_alias_hashes_changed_in_a_later_batch",
+   "state": "passed",
+   "seconds": 0.393
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quarantine_retry_cannot_write_into_a_run_that_is_not_live[dry]",
+   "state": "passed",
+   "seconds": 0.208
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quarantine_retry_cannot_write_into_a_run_that_is_not_live[rolled_back]",
+   "state": "passed",
+   "seconds": 0.235
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quarantine_retry_cannot_write_into_a_run_that_is_not_live[running]",
+   "state": "passed",
+   "seconds": 0.219
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_run_detail_reports_real_batches_and_speed",
+   "state": "passed",
+   "seconds": 0.232
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_batch_log_never_overstates_after_a_failed_batch",
+   "state": "passed",
+   "seconds": 0.172
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_quarantine_pages_report_the_real_total",
+   "state": "passed",
+   "seconds": 0.275
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_repeat_reconciliation_runs_in_the_background_and_is_saved",
+   "state": "passed",
+   "seconds": 0.23
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_reconciliation_flag_clears_when_the_task_crashes",
+   "state": "passed",
+   "seconds": 0.219
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_slow_reconciliation_is_not_mistaken_for_a_dead_worker",
+   "state": "passed",
+   "seconds": 1.227
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_run_that_lost_its_lease_while_finishing_does_not_claim_success",
+   "state": "passed",
+   "seconds": 0.218
+  },
+  {
+   "file": "tests/test_import_pipeline.py",
+   "name": "test_heartbeat_stops_when_the_run_ends",
+   "state": "passed",
+   "seconds": 0.516
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_same_person_at_two_organizers_stays_two_separate_contacts",
+   "state": "passed",
+   "seconds": 0.232
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_a_rerun_for_one_organizer_does_not_touch_another",
+   "state": "passed",
+   "seconds": 0.284
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_writers_are_limited_per_organizer_not_globally",
+   "state": "passed",
+   "seconds": 0.15
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_api_refuses_a_malformed_organizer",
+   "state": "passed",
+   "seconds": 0.14
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_erased_person_is_not_recreated_by_a_rerun_and_other_organizer_stays",
+   "state": "passed",
+   "seconds": 0.315
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_erasure_also_clears_the_person_from_quarantine",
+   "state": "passed",
+   "seconds": 0.22
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_erased_people_stay_erased_after_a_restore_brings_them_back",
+   "state": "passed",
+   "seconds": 0.403
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_consent_proof_travels_with_the_contact_and_gaps_are_reported",
+   "state": "passed",
+   "seconds": 0.222
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_a_card_number_in_any_column_is_quarantined_with_no_content_kept",
+   "state": "passed",
+   "seconds": 0.225
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_rows_gone_from_the_source_are_reported_and_not_deleted",
+   "state": "passed",
+   "seconds": 0.269
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_mongoexport_source_handles_types_drift_and_missing_contact_channel",
+   "state": "passed",
+   "seconds": 0.285
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_outbox_holds_no_transaction_during_the_http_call",
+   "state": "passed",
+   "seconds": 0.16
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_worker_dying_mid_call_leaves_a_lease_that_expires_and_sends_the_same_key",
+   "state": "passed",
+   "seconds": 0.157
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_outbox_retry_schedule_replaces_the_lease",
+   "state": "passed",
+   "seconds": 0.153
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_manifest_gives_a_gate_what_it_needs_and_no_personal_data",
+   "state": "passed",
+   "seconds": 0.146
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_upload_keeps_the_scan_time_writes_one_outbox_message_and_can_be_repeated",
+   "state": "passed",
+   "seconds": 0.157
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_two_offline_gates_admitting_one_ticket_become_a_conflict_to_review",
+   "state": "passed",
+   "seconds": 0.192
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_upload_rejects_future_times_and_junk_without_losing_the_good_scans",
+   "state": "passed",
+   "seconds": 0.161
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_unknown_ticket_scanned_offline_is_kept_for_review",
+   "state": "passed",
+   "seconds": 0.161
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_ticket_refunded_after_the_device_synced_becomes_a_conflict_not_a_normal_entry",
+   "state": "passed",
+   "seconds": 0.167
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_one_scan_id_used_for_two_tickets_admits_nobody_new",
+   "state": "passed",
+   "seconds": 0.186
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_retry_after_is_understood_as_an_http_date",
+   "state": "passed",
+   "seconds": 0.159
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_rows_with_personal_data_need_the_token_to_read",
+   "state": "passed",
+   "seconds": 0.17
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_probes_answer_with_a_pod_ip_as_the_host",
+   "state": "passed",
+   "seconds": 0.17
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_kubernetes_edge_config_differs_from_compose_only_in_addresses",
+   "state": "passed",
+   "seconds": 0.144
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_imports_and_ticketing_use_separate_queues",
+   "state": "passed",
+   "seconds": 0.144
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_metrics_report_what_the_alerts_watch",
+   "state": "passed",
+   "seconds": 0.168
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_slow_requests_are_logged_as_fields_and_every_reply_has_a_request_id",
+   "state": "passed",
+   "seconds": 0.155
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_a_killed_run_resumes_itself_when_auto_resume_is_on",
+   "state": "passed",
+   "seconds": 0.17
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_query_count_does_not_grow_with_batch_size",
+   "state": "passed",
+   "seconds": 0.199
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_run_list_query_count_does_not_grow_with_runs",
+   "state": "passed",
+   "seconds": 0.197
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_operator_commands_do_what_the_runbooks_say",
+   "state": "passed",
+   "seconds": 0.282
+  },
+  {
+   "file": "tests/test_platform_realities.py",
+   "name": "test_cutover_report_says_no_until_every_check_passes",
+   "state": "passed",
+   "seconds": 0.36
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_retries_through_429_and_500_and_counts_them",
+   "state": "passed",
+   "seconds": 0.127
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_retry_after_header_is_honoured",
+   "state": "passed",
+   "seconds": 0.033
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_slow_response_times_out_and_is_retried",
+   "state": "passed",
+   "seconds": 0.636
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_rate_limiting_does_not_trip_the_breaker",
+   "state": "passed",
+   "seconds": 0.255
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_outage_opens_breaker_and_stops_traffic_then_recovers",
+   "state": "passed",
+   "seconds": 1.673
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_client_errors_are_not_retried",
+   "state": "passed",
+   "seconds": 0.021
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_post_refuses_to_run_without_an_idempotency_key",
+   "state": "passed",
+   "seconds": 0.018
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_lost_reply_retried_with_same_key_applies_once",
+   "state": "passed",
+   "seconds": 0.037
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_webhook_signature_rules",
+   "state": "passed",
+   "seconds": 0.003
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_repeated_timeouts_open_the_breaker",
+   "state": "passed",
+   "seconds": 0.631
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_every_request_lands_in_exactly_one_outcome",
+   "state": "passed",
+   "seconds": 0.101
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_missing_source_folder_is_an_empty_list",
+   "state": "passed",
+   "seconds": 0.006
+  },
+  {
+   "file": "tests/test_connector.py",
+   "name": "test_stand_in_refuses_unknown_fault_settings",
+   "state": "passed",
+   "seconds": 0.025
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_static_files_are_served_without_a_collectstatic_step",
+   "state": "passed",
+   "seconds": 0.006
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_static_view_cannot_leave_its_folder",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_scripts_never_assign_html_from_a_string",
+   "state": "passed",
+   "seconds": 0.008
+  },
+  {
+   "file": "tests/test_console.py",
+   "name": "test_static_assets_reference_no_external_host",
+   "state": "passed",
+   "seconds": 0.004
+  },
+  {
+   "file": "tests/test_gunicorn_config.py",
+   "name": "test_idle_connections_do_not_hold_worker_threads",
+   "state": "passed",
+   "seconds": 0.016
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_backoff_grows_stays_under_cap_and_varies",
+   "state": "passed",
+   "seconds": 0.003
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_retry_after_is_a_floor",
+   "state": "passed",
+   "seconds": 0.002
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_token_bucket_enforces_rate",
+   "state": "passed",
+   "seconds": 0.002
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_breaker_opens_rejects_then_probes_and_closes",
+   "state": "passed",
+   "seconds": 0.002
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_failed_probe_reopens_for_a_full_timeout",
+   "state": "passed",
+   "seconds": 0.002
+  },
+  {
+   "file": "tests/test_resilience.py",
+   "name": "test_success_resets_the_failure_streak",
+   "state": "passed",
+   "seconds": 1.789
+  }
+ ]
+}

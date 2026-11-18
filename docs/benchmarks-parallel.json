@@ -1,0 +1,42 @@
+{
+  "measured": "2026-11-08",
+  "machine": "Docker Desktop VM with 8 CPUs and 7 GB; one PostgreSQL; synthetic data; one run per row",
+  "results": [
+    {
+      "organizers_at_once": 1,
+      "rows_each": 250000,
+      "seconds_including_reconciliation": 71.5,
+      "rows_per_second_all_together": 3496,
+      "statuses": [
+        "completed"
+      ],
+      "discrepancies": 0,
+      "cross_organizer_merges": 0,
+      "celery_slots": 2
+    },
+    {
+      "organizers_at_once": 2,
+      "rows_each": 250000,
+      "seconds_including_reconciliation": 72.8,
+      "rows_per_second_all_together": 6868,
+      "statuses": [
+        "completed"
+      ],
+      "discrepancies": 0,
+      "cross_organizer_merges": 0,
+      "celery_slots": 2
+    },
+    {
+      "organizers_at_once": 4,
+      "rows_each": 250000,
+      "seconds_including_reconciliation": 104.7,
+      "rows_per_second_all_together": 9549,
+      "statuses": [
+        "completed"
+      ],
+      "discrepancies": 0,
+      "cross_organizer_merges": 0,
+      "celery_slots": 4
+    }
+  ]
+}
