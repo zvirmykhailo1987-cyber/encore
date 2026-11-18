@@ -290,7 +290,9 @@ def test_the_committed_results_file_renders(client):
         assert "could not be shown" not in html
         assert "Not measured yet" not in html
         assert "10,000,000" in html
-        assert "41.1 min" in html
+        rows = json.loads(views.benchmarks_path().read_text(encoding="utf-8"))
+        ten_million = next(r for r in rows if r.get("rows") == 10_000_000)
+        assert f"{ten_million['seconds_total'] / 60:.1f} min" in html
         assert "Fans refreshing" in html
         assert "other result" not in html
 

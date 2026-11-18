@@ -402,11 +402,13 @@ def test_batch_log_never_overstates_after_a_failed_batch(tmp_path, monkeypatch):
     assert ImportBatch.objects.filter(run=run).count() == 1
 
 
-def test_quarantine_pages_report_the_real_total(tmp_path):
+def test_quarantine_pages_report_the_real_total(tmp_path, settings):
     from rest_framework.test import APIClient
 
+    settings.ENCORE_OPERATOR_TOKEN = "op"
+
     run = run_file(write(tmp_path, "".join(f"{i},bad,,,,,,\n" for i in range(1, 251))), batch_size=100)
-    api = APIClient()
+    api = APIClient(HTTP_AUTHORIZATION="Bearer op")
     first = api.get(f"/api/v1/imports/runs/{run.pk}/quarantine")
     assert first["X-Total-Count"] == "250"
     assert len(first.json()) == 200

@@ -422,13 +422,14 @@ def test_dead_letter_list_and_resolve(settings):
     settings.ENCORE_OPERATOR_TOKEN = "op"
     handle_webhook("bad", {"ticket": {"id": 5}})
     api = APIClient()
-    rows = api.get("/api/v1/connector/dead-letters").json()
+    assert api.get("/api/v1/connector/dead-letters").status_code == 403
+    rows = api.get("/api/v1/connector/dead-letters", HTTP_AUTHORIZATION="Bearer op").json()
     assert rows[0]["kind"] == "webhook"
     url = f"/api/v1/connector/dead-letters/{rows[0]['id']}/resolve"
     assert api.post(url).status_code == 403
     assert api.post(url, HTTP_AUTHORIZATION="Bearer op").status_code == 200
     assert api.post(url, HTTP_AUTHORIZATION="Bearer op").status_code == 404
-    assert api.get("/api/v1/connector/dead-letters").json() == []
+    assert api.get("/api/v1/connector/dead-letters", HTTP_AUTHORIZATION="Bearer op").json() == []
     assert DeadLetter.objects.count() == 1
 
 
