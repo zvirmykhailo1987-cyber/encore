@@ -18,6 +18,8 @@ HEADER = [
     "LNAME",
     "TOWN",
     "OPT_IN",
+    "OPT_IN_AT",
+    "OPT_IN_TEXT",
     "CREATED",
     "LOYALTY_TIER_OLD",
 ]
@@ -67,7 +69,23 @@ def generate(path: Path, rows: int, seed: int = 7, dirty: float = 0.02, duplicat
             if index % 1000 == 0:
                 town = 'Milano,\nCentro "Storico"'
                 count("quoted_multiline")
-            writer.writerow([legacy_id, email, mobile, first, last, town, opt_in, created, rng.choice("ABC")])
+            # About half of the people who said yes have proof of when and how. The rest are the usual legacy gap.
+            has_proof = opt_in in ("Y", "1") and rng.random() < 0.5
+            writer.writerow(
+                [
+                    legacy_id,
+                    email,
+                    mobile,
+                    first,
+                    last,
+                    town,
+                    opt_in,
+                    created if has_proof and created != "31/31/2019" else "",
+                    "Signup form v3: send me news about events" if has_proof else "",
+                    created,
+                    rng.choice("ABC"),
+                ]
+            )
     return manifest
 
 

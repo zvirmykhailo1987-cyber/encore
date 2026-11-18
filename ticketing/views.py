@@ -1,4 +1,5 @@
 import dataclasses
+import datetime as dt
 import hashlib
 import json
 import time
@@ -10,6 +11,8 @@ from django.db import connection
 from django.db.models import Count
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from rest_framework.request import Request
@@ -20,10 +23,14 @@ from mock_api.app import Faults
 
 from .models import ConnectorMetric, ConnectorState, DeadLetter, OutboundCheckin, SyncCursor
 from .resilience import CircuitBreaker, RetryPolicy
-from .security import OperatorToken, webhook_is_authentic
-from .services import event_availability, handle_webhook, scan_ticket
+from .security import OperatorToken, PersonalDataReader, webhook_is_authentic
+from .services import apply_offline_scan, event_availability, event_manifest, handle_webhook, scan_ticket
 
 AVAILABILITY_TTL_SECONDS = 2
+MANIFEST_PAGE = 5000
+OFFLINE_BATCH_LIMIT = 1000
+# Device clocks drift. A scan this far ahead of the server is not trusted.
+OFFLINE_CLOCK_SKEW = dt.timedelta(minutes=5)
 
 
 @csrf_exempt
@@ -56,6 +63,56 @@ class ScanView(APIView):
         return Response(
             {"outcome": result.outcome, "checked_in_at": result.checked_in_at}, status=result.http_status
         )
+
+
+class EventManifestView(APIView):
+    permission_classes = [PersonalDataReader]
+
+    def get(self, request: Request, event: str) -> Response:
+        try:
+            after = max(0, int(request.query_params.get("after", 0)))
+        except ValueError:
+            return Response({"error": "after must be a number"}, status=400)
+        return Response(event_manifest(event, after, MANIFEST_PAGE))
+
+
+def _offline_scan_fields(item: object, latest: dt.datetime) -> tuple[str, str, dt.datetime] | None:
+    if not isinstance(item, dict):
+        return None
+    ticket, scan_id, raw_time = item.get("ticket"), item.get("scan_id"), item.get("scanned_at")
+    if not (isinstance(ticket, str) and 0 < len(ticket) <= 64 and isinstance(scan_id, str) and 0 < len(scan_id) <= 64):
+        return None
+    try:
+        when = parse_datetime(raw_time) if isinstance(raw_time, str) else None
+    except ValueError:
+        return None
+    if when is None or when.tzinfo is None or when > latest:
+        return None
+    return ticket, scan_id, when
+
+
+class OfflineScanUploadView(APIView):
+    """A gate that was offline uploads what it decided. Safe to send again after a lost reply."""
+
+    permission_classes = [OperatorToken]
+
+    def post(self, request: Request) -> Response:
+        device, scans = request.data.get("device"), request.data.get("scans")
+        if not (isinstance(device, str) and 0 < len(device) <= 64 and isinstance(scans, list)):
+            return Response({"error": "device and scans are required"}, status=400)
+        if len(scans) > OFFLINE_BATCH_LIMIT:
+            return Response({"error": f"At most {OFFLINE_BATCH_LIMIT} scans per upload"}, status=413)
+        latest = timezone.now() + OFFLINE_CLOCK_SKEW
+        results = []
+        for item in scans:
+            fields = _offline_scan_fields(item, latest)
+            if fields is None:
+                scan_id = item.get("scan_id") if isinstance(item, dict) else None
+                results.append({"scan_id": scan_id if isinstance(scan_id, str) else None, "result": "rejected"})
+                continue
+            ticket, scan_id, when = fields
+            results.append({"scan_id": scan_id, "result": apply_offline_scan(ticket, scan_id, device, when)})
+        return Response({"results": results})
 
 
 def cached_availability(event: str) -> tuple[dict, bool]:
@@ -121,6 +178,8 @@ def dead_letter_summary() -> list[dict]:
 
 
 class DeadLetterListView(APIView):
+    permission_classes = [PersonalDataReader]
+
     def get(self, request: Request) -> Response:
         rows = DeadLetter.objects.filter(resolved=False)[:100]
         return Response(

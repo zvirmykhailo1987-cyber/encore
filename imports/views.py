@@ -1,4 +1,5 @@
 import datetime as dt
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -10,7 +11,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ticketing.security import OperatorToken
+from crm.models import DEFAULT_ORGANIZER
+from ticketing.security import OperatorToken, PersonalDataReader
 
 from .mapping import RowDefect
 from .models import ImportBatch, ImportRun, QuarantineRow
@@ -18,6 +20,7 @@ from .pipeline import RunBusy, reprocess_quarantined, rollback_run
 from .tasks import reconcile_task, run_import
 
 RECONCILE_EXPIRY_HOURS = 6
+ORGANIZER = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 
 
 class RunSerializer(serializers.ModelSerializer):
@@ -52,9 +55,17 @@ class RunListView(APIView):
         path = resolve_source(str(request.data.get("source", "")))
         if path is None:
             return Response({"error": "Unknown source file"}, status=400)
+        organizer = str(request.data.get("organizer") or DEFAULT_ORGANIZER)
+        if not ORGANIZER.match(organizer):
+            return Response({"error": "An organizer is lower case letters, digits, - and _"}, status=400)
+        if path.name.endswith(".mongoexport.jsonl"):
+            source_format = "mongo"
+        else:
+            source_format = "jsonl" if path.suffix == ".jsonl" else "csv"
         run = ImportRun.objects.create(
+            organizer=organizer,
             source_path=str(path),
-            source_format="jsonl" if path.suffix == ".jsonl" else "csv",
+            source_format=source_format,
             dry_run=bool(request.data.get("dry_run")),
         )
         run_import.delay(run.pk)
@@ -161,6 +172,8 @@ class RunActionView(APIView):
 
 
 class QuarantineListView(APIView):
+    permission_classes = [PersonalDataReader]
+
     def get(self, request: Request, pk: int) -> Response:
         rows = QuarantineRow.objects.filter(run_id=pk)
         reason = request.query_params.get("reason")

@@ -23,12 +23,23 @@ from django.db import IntegrityError, connection, connections, transaction
 from django.db.models import F
 from django.utils import timezone
 
+from crm.erasure_keys import erased_hashes, subject_hash
 from crm.models import IMPORTABLE_FIELDS, Contact, ContactAlias
 
-from .mapping import COLUMN_MAP, REQUIRED_COLUMNS, CleanRow, RowDefect, clean_row
+from .mapping import CARD_NUMBER_DEFECT, COLUMN_MAP, REQUIRED_COLUMNS, CleanRow, RowDefect, clean_row
 from .models import AliasChange, ContactChange, ImportBatch, ImportRun, QuarantineRow
 from .reconcile import reconcile_run
-from .source import Record, SourceError, clean_for_storage, file_sha256, iter_csv, iter_jsonl, read_header
+from .source import (
+    Record,
+    SourceError,
+    clean_for_storage,
+    file_sha256,
+    iter_csv,
+    iter_jsonl,
+    iter_mongoexport,
+    mongo_unmapped_keys,
+    read_header,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +71,7 @@ def contact_snapshot(contact: Contact) -> dict:
 
 
 def _restore_value(name: str, value):
-    if name == "legacy_created_at" and value is not None:
+    if name in ("legacy_created_at", "consent_recorded_at") and value is not None:
         return dt.date.fromisoformat(value)
     return value
 
@@ -73,6 +84,8 @@ def restore_snapshot(contact: Contact, snapshot: dict) -> None:
 def records_for(run: ImportRun, path: Path) -> Iterator[Record]:
     if run.source_format == "jsonl":
         return iter_jsonl(path, run.checkpoint_offset, run.checkpoint_row)
+    if run.source_format == "mongo":
+        return iter_mongoexport(path, run.checkpoint_offset, run.checkpoint_row)
     return iter_csv(path, run.header, run.checkpoint_offset, run.checkpoint_row)
 
 
@@ -97,21 +110,31 @@ def copy_contacts(contacts: list[Contact]) -> None:
         for contact, (pk,) in zip(contacts, cursor.fetchall(), strict=True):
             contact.pk = pk
     now = timezone.now()
-    columns = ("id", *IMPORTABLE_FIELDS, "curated_fields", "created_by_run_id", "created_at", "updated_at")
+    columns = (
+        "id",
+        "organizer",
+        *IMPORTABLE_FIELDS,
+        "curated_fields",
+        "created_by_run_id",
+        "created_at",
+        "updated_at",
+    )
     with connection.connection.cursor() as raw:
         with raw.copy(f"COPY crm_contact ({', '.join(columns)}) FROM STDIN") as copy:  # noqa: S608
             for contact in contacts:
                 values = [getattr(contact, name) for name in IMPORTABLE_FIELDS]
-                copy.write_row((contact.pk, *values, "[]", contact.created_by_run_id, now, now))
+                copy.write_row((contact.pk, contact.organizer, *values, "[]", contact.created_by_run_id, now, now))
 
 
 def copy_aliases(aliases: list[ContactAlias]) -> None:
     if not aliases:
         return
     with connection.connection.cursor() as raw:
-        with raw.copy("COPY crm_contactalias (src_uid, contact_id, row_hash, run_id) FROM STDIN") as copy:
+        with raw.copy(
+            "COPY crm_contactalias (organizer, src_uid, contact_id, row_hash, run_id) FROM STDIN"
+        ) as copy:
             for alias in aliases:
-                copy.write_row((alias.src_uid, alias.contact.pk, alias.row_hash, alias.run_id))
+                copy.write_row((alias.organizer, alias.src_uid, alias.contact.pk, alias.row_hash, alias.run_id))
 
 
 def _apply_clean_rows(
@@ -120,12 +143,30 @@ def _apply_clean_rows(
     result: BatchResult,
     overlay: DryRunOverlay | None,
 ) -> None:
-    src_uids = [row.src_uid for row, _ in rows]
+    organizer = run.organizer
     emails = {str(row.fields["email"]) for row, _ in rows if row.fields["email"]}
+    erased = erased_hashes(organizer, emails)
+    if erased:
+        kept = []
+        for row, record in rows:
+            email = row.fields["email"]
+            if email and subject_hash(organizer, str(email)) in erased:
+                # The row content is left out on purpose: quarantine must not bring the person back either.
+                result.quarantine.append(
+                    QuarantineRow(run=run, row_number=record.row_number, reason="erased_subject", raw={})
+                )
+                result.counts["quarantined"] += 1
+            else:
+                kept.append((row, record))
+        rows = kept
+    src_uids = [row.src_uid for row, _ in rows]
     aliases = {
-        a.src_uid: a for a in ContactAlias.objects.select_related("contact").filter(src_uid__in=src_uids)
+        a.src_uid: a
+        for a in ContactAlias.objects.select_related("contact").filter(
+            organizer=organizer, src_uid__in=src_uids
+        )
     }
-    contacts_by_email = {c.email: c for c in Contact.objects.filter(email__in=emails)}
+    contacts_by_email = {c.email: c for c in Contact.objects.filter(organizer=organizer, email__in=emails)}
     for known in aliases.values():
         if known.contact.email:
             contacts_by_email.setdefault(known.contact.email, known.contact)
@@ -185,14 +226,18 @@ def _apply_clean_rows(
             for name, value in row.fields.items():
                 if value is not None and getattr(existing, name) is None:
                     setattr(existing, name, value)
-            alias = ContactAlias(src_uid=row.src_uid, contact=existing, row_hash=row.row_hash, run=run)
+            alias = ContactAlias(
+                organizer=organizer, src_uid=row.src_uid, contact=existing, row_hash=row.row_hash, run=run
+            )
             result.counts["merged"] += 1
         else:
-            contact = Contact(created_by_run=run, **row.fields)  # type: ignore[arg-type]
+            contact = Contact(organizer=organizer, created_by_run=run, **row.fields)  # type: ignore[arg-type]
             new_contacts.append(contact)
             if email:
                 contacts_by_email[email] = contact
-            alias = ContactAlias(src_uid=row.src_uid, contact=contact, row_hash=row.row_hash, run=run)
+            alias = ContactAlias(
+                organizer=organizer, src_uid=row.src_uid, contact=contact, row_hash=row.row_hash, run=run
+            )
             result.counts["created"] += 1
         aliases[row.src_uid] = alias
         new_aliases.append(alias)
@@ -235,7 +280,10 @@ def process_batch(run: ImportRun, records: Iterable[Record], overlay: DryRunOver
         try:
             clean.append((clean_row(record.row_number, record.values, run.source_system), record))
         except RowDefect as defect:
-            result.quarantine.append(_defect_row(run, record, defect.reason, defect.detail))
+            if defect.reason == CARD_NUMBER_DEFECT:
+                result.quarantine.append(QuarantineRow(run=run, row_number=record.row_number, reason=defect.reason, raw={}))
+            else:
+                result.quarantine.append(_defect_row(run, record, defect.reason, defect.detail))
             result.counts["quarantined"] += 1
     _apply_clean_rows(run, clean, result, overlay)
     return result
@@ -285,7 +333,7 @@ def _claim(run_id: int) -> tuple[ImportRun, str]:
             run.error = ""
             run.save()
     except IntegrityError as exc:
-        raise RunBusy("Another write import is already running") from exc
+        raise RunBusy("Another write import is already running for this organizer") from exc
     return run, token
 
 
@@ -295,6 +343,8 @@ def _prepare(run: ImportRun, path: Path) -> None:
         raise SourceError("The source file changed since this run started. Start a new run for the new file.")
     run.source_sha256 = digest
     run.source_size = path.stat().st_size
+    if run.source_format == "mongo":
+        run.unmapped_columns = mongo_unmapped_keys(path)
     if run.source_format == "csv" and not run.header:
         header, offset = read_header(path)
         missing = [column for column in REQUIRED_COLUMNS if column not in header]
@@ -390,6 +440,8 @@ def _execute_claimed(
             committed += 1
             if after_batch:
                 after_batch(committed)
+            if settings.ENCORE_IMPORT_BATCH_PAUSE_MS:
+                time.sleep(settings.ENCORE_IMPORT_BATCH_PAUSE_MS / 1000)
             if pause:
                 ImportRun.objects.filter(pk=run.pk, lease_token=token).update(
                     status=ImportRun.Status.PAUSED, lease_token="", pause_requested=False
@@ -440,7 +492,7 @@ def rollback_run(run_id: int) -> ImportRun:
         if run.status != ImportRun.Status.COMPLETED or run.dry_run:
             raise RunBusy(f"Run {run_id} cannot be rolled back from status {run.status}")
         later = ImportRun.objects.filter(
-            pk__gt=run.pk, dry_run=False, status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING]
+            organizer=run.organizer, pk__gt=run.pk, dry_run=False, status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING]
         )
         if later.exists():
             raise RunBusy("A later import was applied. Roll that one back first.")
@@ -451,7 +503,7 @@ def rollback_run(run_id: int) -> ImportRun:
             restore_snapshot(change.contact, change.before)
             change.contact.save(update_fields=[*IMPORTABLE_FIELDS, "updated_at"])
         for alias_change in AliasChange.objects.filter(run=run).iterator(chunk_size=2000):
-            ContactAlias.objects.filter(src_uid=alias_change.src_uid).update(
+            ContactAlias.objects.filter(organizer=run.organizer, src_uid=alias_change.src_uid).update(
                 row_hash=alias_change.before_hash
             )
         AliasChange.objects.filter(run=run).delete()

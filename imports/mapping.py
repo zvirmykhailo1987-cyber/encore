@@ -19,6 +19,8 @@ COLUMN_MAP = {
     "LNAME": "last_name",
     "TOWN": "city",
     "OPT_IN": "marketing_opt_in",
+    "OPT_IN_AT": "consent_recorded_at",
+    "OPT_IN_TEXT": "consent_wording",
     "CREATED": "legacy_created_at",
 }
 REQUIRED_COLUMNS = ("CUST_ID",)
@@ -28,6 +30,9 @@ _PHONE_NOISE = re.compile(r"[\s\-().]")
 _PHONE = re.compile(r"^\+?\d{7,15}$")
 _TRUE = {"y", "yes", "1", "true"}
 _FALSE = {"n", "no", "0", "false"}
+_CARD_CANDIDATE = re.compile(r"(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])")
+#: Rows with this reason are stored with no content at all, unlike every other quarantined row.
+CARD_NUMBER_DEFECT = "possible_card_number"
 
 
 class RowDefect(Exception):
@@ -100,10 +105,34 @@ def _date(value: str) -> dt.date | None:
     raise RowDefect("bad_date", value)
 
 
+def _luhn_valid(digits: str) -> bool:
+    total = 0
+    for index, char in enumerate(reversed(digits)):
+        number = int(char)
+        if index % 2:
+            number = number * 2 - 9 if number > 4 else number * 2
+        total += number
+    return total % 10 == 0
+
+
+def _contains_card_number(values: dict[str, str]) -> bool:
+    """Staff paste odd things into legacy notes. A card number must not travel into a new system or its logs."""
+    for column, value in values.items():
+        if column == "MOBILE":
+            continue
+        for found in _CARD_CANDIDATE.findall(value):
+            digits = re.sub(r"[ -]", "", found)
+            if 13 <= len(digits) <= 19 and _luhn_valid(digits):
+                return True
+    return False
+
+
 def clean_row(row_number: int, values: dict[str, str], system: str) -> CleanRow:
     for value in values.values():
         if has_bad_encoding(value):
             raise RowDefect("bad_encoding")
+    if _contains_card_number(values):
+        raise RowDefect(CARD_NUMBER_DEFECT)
     legacy_id = values.get("CUST_ID", "").strip()
     if not legacy_id:
         raise RowDefect("missing_id")
@@ -116,6 +145,8 @@ def clean_row(row_number: int, values: dict[str, str], system: str) -> CleanRow:
         "last_name": _text(values.get("LNAME", ""), 120),
         "city": _text(values.get("TOWN", ""), 120),
         "marketing_opt_in": _opt_in(values.get("OPT_IN", "")),
+        "consent_recorded_at": _date(values.get("OPT_IN_AT", "")),
+        "consent_wording": _text(values.get("OPT_IN_TEXT", ""), 500),
         "legacy_created_at": _date(values.get("CREATED", "")),
     }
     if fields["email"] is None and fields["phone"] is None:

@@ -26,6 +26,20 @@ def webhook_is_authentic(body: bytes, timestamp: str, signature: str, now: float
     return hmac.compare_digest(sign_webhook(secret, timestamp, body), signature)
 
 
+def _token_supplied(request) -> bool:
+    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    return hmac.compare_digest(supplied.encode(), settings.ENCORE_OPERATOR_TOKEN.encode())
+
+
+class PersonalDataReader(BasePermission):
+    """Reading rows that hold personal data needs the token as well. Debug machines stay open, as for writes."""
+
+    def has_permission(self, request, view) -> bool:
+        if not settings.ENCORE_OPERATOR_TOKEN:
+            return bool(settings.DEBUG)
+        return _token_supplied(request)
+
+
 class OperatorToken(BasePermission):
     """Writes need the operator token. With no token set they are open only on a debug machine."""
 
@@ -38,5 +52,4 @@ class OperatorToken(BasePermission):
             origin = request.headers.get("Origin")
             same_site = not origin or urlsplit(origin).netloc == request.get_host()
             return settings.DEBUG and same_site
-        supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        return hmac.compare_digest(supplied.encode(), token.encode())
+        return _token_supplied(request)

@@ -32,6 +32,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "encore.middleware.RequestLog",
+    "encore.middleware.OperationalEndpoints",
     "django.middleware.security.SecurityMiddleware",
     "encore.middleware.ContentSecurityPolicy",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -74,6 +76,16 @@ CACHES = {
     }
 }
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "encore.logs.JsonFormatter"}},
+    "handlers": {"stdout": {"class": "logging.StreamHandler", "formatter": "json"}},
+    "root": {"handlers": ["stdout"], "level": os.environ.get("ENCORE_LOG_LEVEL", "INFO")},
+}
+# Requests slower than this are logged. Logging every one would cost more than it tells at peak traffic.
+ENCORE_SLOW_REQUEST_MS = int(os.environ.get("ENCORE_SLOW_REQUEST_MS", "1000"))
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 TIME_ZONE = "UTC"
@@ -94,6 +106,11 @@ CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_IGNORE_RESULT = True
+# Imports have their own queue and workers, so a long import cannot hold up ticket sync or check-in delivery.
+CELERY_TASK_ROUTES = {"imports.run_import": {"queue": "imports"}, "imports.reconcile": {"queue": "imports"}}
+# Redis hands a long unacknowledged task to another worker after this time, one hour by default. Our lease makes such
+# a second delivery harmless, so the timeout only needs to be long enough not to create needless ones.
+CELERY_BROKER_TRANSPORT_OPTIONS = {"visibility_timeout": 43200}
 CELERY_BEAT_SCHEDULE = {
     "reap-stale-import-runs": {"task": "imports.reap_stale_runs", "schedule": 15.0},
     "sync-tickets": {"task": "ticketing.sync_tickets", "schedule": 10.0},
@@ -105,6 +122,11 @@ ENCORE_IMPORT_BATCH_SIZE = int(os.environ.get("ENCORE_IMPORT_BATCH_SIZE", "5000"
 ENCORE_IMPORT_SOURCE_DIR = Path(os.environ.get("ENCORE_IMPORT_SOURCE_DIR", BASE_DIR / "data"))
 ENCORE_IMPORT_HEARTBEAT_SECONDS = float(os.environ.get("ENCORE_IMPORT_HEARTBEAT_SECONDS", "5"))
 ENCORE_IMPORT_STALE_SECONDS = int(os.environ.get("ENCORE_IMPORT_STALE_SECONDS", "30"))
+# A pause after every batch, to leave room for live traffic while an organizer has an on-sale running.
+ENCORE_IMPORT_BATCH_PAUSE_MS = int(os.environ.get("ENCORE_IMPORT_BATCH_PAUSE_MS", "0"))
+# On Kubernetes a worker pod can vanish at any time, so a run should restart itself. A limit stops a crash loop.
+ENCORE_IMPORT_AUTO_RESUME = os.environ.get("ENCORE_IMPORT_AUTO_RESUME", "0") == "1"
+ENCORE_IMPORT_MAX_AUTO_RESUMES = int(os.environ.get("ENCORE_IMPORT_MAX_AUTO_RESUMES", "5"))
 
 # Ticketing connector
 TICKETING_BASE_URL = os.environ.get("TICKETING_BASE_URL", "http://localhost:8099")

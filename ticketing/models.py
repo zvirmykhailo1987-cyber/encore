@@ -79,6 +79,22 @@ class OutboundCheckin(models.Model):
         return f"{self.idempotency_key} {self.status}"
 
 
+class ScanConflict(models.Model):
+    """Two gates admitted one ticket while offline, or a gate admitted a ticket the server has never seen."""
+
+    scan_id = models.CharField(max_length=64, unique=True)
+    ticket_external_id = models.CharField(max_length=64, db_index=True)
+    device = models.CharField(max_length=64)
+    scanned_at = models.DateTimeField()
+    reason = models.CharField(max_length=20)
+    first_scan_id = models.CharField(max_length=64, blank=True)
+    reviewed = models.BooleanField(default=False)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.ticket_external_id}: {self.reason}"
+
+
 class ConnectorMetric(models.Model):
     """One row per minute. Latency uses fixed buckets so workers can merge their numbers."""
 

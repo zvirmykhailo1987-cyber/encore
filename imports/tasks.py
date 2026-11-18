@@ -1,4 +1,5 @@
 from celery import shared_task
+from django.conf import settings
 
 from .models import ImportRun
 from .pipeline import RunBusy, execute_run, reap_stale_runs
@@ -32,4 +33,12 @@ def reconcile_task(run_id: int) -> None:
 
 @shared_task(name="imports.reap_stale_runs")
 def reap_stale() -> list[int]:
-    return reap_stale_runs()
+    stale = reap_stale_runs()
+    if settings.ENCORE_IMPORT_AUTO_RESUME:
+        for run in ImportRun.objects.filter(
+            pk__in=stale,
+            status=ImportRun.Status.INTERRUPTED,
+            resume_count__lt=settings.ENCORE_IMPORT_MAX_AUTO_RESUMES,
+        ):
+            run_import.delay(run.pk)
+    return stale

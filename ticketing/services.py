@@ -17,6 +17,7 @@ from .models import (
     ConnectorState,
     DeadLetter,
     OutboundCheckin,
+    ScanConflict,
     SyncCursor,
     Ticket,
     WebhookEvent,
@@ -25,6 +26,8 @@ from .resilience import CircuitBreaker, RetryPolicy, TokenBucket
 
 CURSOR_NAME = "tickets"
 OUTBOX_MAX_ATTEMPTS = 8
+# Longer than one API call can take, including its timeout.
+OUTBOX_LEASE_SECONDS = 60
 STATUSES = {"valid", "cancelled", "refunded"}
 
 
@@ -171,13 +174,17 @@ class ScanResult:
 def scan_ticket(ticket_external_id: str, scan_id: str) -> ScanResult:
     """Admit a ticket once. A gate retrying the same scan after a lost reply gets the same answer."""
     now = timezone.now()
-    with transaction.atomic():
-        admitted = Ticket.objects.filter(
-            external_id=ticket_external_id, checked_in_at__isnull=True, status="valid"
-        ).update(checked_in_at=now, checked_in_scan_id=scan_id)
-        if admitted:
-            OutboundCheckin.objects.create(ticket_external_id=ticket_external_id, idempotency_key=scan_id)
-            return ScanResult("admitted", 200, now)
+    try:
+        with transaction.atomic():
+            admitted = Ticket.objects.filter(
+                external_id=ticket_external_id, checked_in_at__isnull=True, status="valid"
+            ).update(checked_in_at=now, checked_in_scan_id=scan_id)
+            if admitted:
+                OutboundCheckin.objects.create(ticket_external_id=ticket_external_id, idempotency_key=scan_id)
+                return ScanResult("admitted", 200, now)
+    except IntegrityError:
+        # The same key with different content is a client bug. It must not admit anyone or look like a success.
+        return ScanResult("scan_id_reused", 422)
     ticket = Ticket.objects.filter(external_id=ticket_external_id).first()
     if ticket is None:
         return ScanResult("unknown_ticket", 404)
@@ -186,6 +193,69 @@ def scan_ticket(ticket_external_id: str, scan_id: str) -> ScanResult:
     if ticket.status != "valid":
         return ScanResult(f"ticket_{ticket.status}", 409)
     return ScanResult("already_used", 409, ticket.checked_in_at)
+
+
+def event_manifest(event_external_id: str, after: int, limit: int) -> dict:
+    """What a gate device downloads before the doors open, so it can decide alone. It holds no personal data."""
+    rows = list(
+        Ticket.objects.filter(event_id_external=event_external_id, pk__gt=after)
+        .order_by("pk")
+        .values_list("pk", "external_id", "status", "checked_in_at")[:limit]
+    )
+    return {
+        "event": event_external_id,
+        "generated_at": timezone.now(),
+        "tickets": [
+            {"ticket": external_id, "status": status, "used": used is not None}
+            for _, external_id, status, used in rows
+        ],
+        "next_after": rows[-1][0] if len(rows) == limit else None,
+    }
+
+
+def apply_offline_scan(ticket_external_id: str, scan_id: str, device: str, scanned_at: dt.datetime) -> str:
+    """Accept what a gate already decided while it had no network. The person has already walked in.
+
+    The first upload for a ticket counts as the check-in. A later upload from a different scan cannot be undone at
+    the gate, so it is recorded as a conflict for a person to review.
+    """
+    try:
+        with transaction.atomic():
+            admitted = Ticket.objects.filter(
+                external_id=ticket_external_id, checked_in_at__isnull=True, status="valid"
+            ).update(checked_in_at=scanned_at, checked_in_scan_id=scan_id)
+            if admitted:
+                OutboundCheckin.objects.create(ticket_external_id=ticket_external_id, idempotency_key=scan_id)
+                return "accepted"
+    except IntegrityError:
+        return "rejected"  # This scan id was already used for a different ticket.
+    ticket = Ticket.objects.filter(external_id=ticket_external_id).first()
+    if ticket is None:
+        ScanConflict.objects.get_or_create(
+            scan_id=scan_id,
+            defaults={
+                "ticket_external_id": ticket_external_id,
+                "device": device,
+                "scanned_at": scanned_at,
+                "reason": "unknown_ticket",
+            },
+        )
+        return "conflict"
+    if ticket.checked_in_scan_id == scan_id:
+        return "duplicate_upload"
+    # A ticket refunded after the device last synced lands here too: the person is inside, so someone must look.
+    reason = "already_used" if ticket.checked_in_at is not None else f"ticket_{ticket.status}"
+    ScanConflict.objects.get_or_create(
+        scan_id=scan_id,
+        defaults={
+            "ticket_external_id": ticket_external_id,
+            "device": device,
+            "scanned_at": scanned_at,
+            "reason": reason,
+            "first_scan_id": ticket.checked_in_scan_id or "",
+        },
+    )
+    return "conflict"
 
 
 def event_availability(event_external_id: str) -> dict:
@@ -204,47 +274,63 @@ class FlushResult:
     stopped_by: str = ""
 
 
+def _claim_message() -> OutboundCheckin | None:
+    """Take one due message and commit straight away. Moving its due time is the lease."""
+    with transaction.atomic():
+        message = (
+            OutboundCheckin.objects.select_for_update(skip_locked=True)
+            .filter(status=OutboundCheckin.Status.PENDING, next_attempt_at__lte=timezone.now())
+            .order_by("next_attempt_at", "pk")
+            .first()
+        )
+        if message is None:
+            return None
+        message.attempts += 1
+        message.next_attempt_at = timezone.now() + dt.timedelta(seconds=OUTBOX_LEASE_SECONDS)
+        message.save(update_fields=["attempts", "next_attempt_at"])
+        return message
+
+
 def flush_outbox(client: TicketingClient, limit: int = 200) -> FlushResult:
-    """Deliver due check-ins. This client makes one attempt per message: the outbox itself owns the retry schedule."""
+    """Deliver due check-ins. No database lock is held during the HTTP call.
+
+    If this worker dies mid-call, the lease runs out and another worker sends the message again. The stable
+    idempotency key makes that second delivery harmless. This client makes one attempt per message: the outbox
+    itself owns the retry schedule.
+    """
     result = FlushResult()
     for _ in range(limit):
-        with transaction.atomic():
-            message = (
-                OutboundCheckin.objects.select_for_update(skip_locked=True)
-                .filter(status=OutboundCheckin.Status.PENDING, next_attempt_at__lte=timezone.now())
-                .order_by("next_attempt_at", "pk")
-                .first()
+        message = _claim_message()
+        if message is None:
+            break
+        try:
+            client.post_checkin(message.ticket_external_id, message.idempotency_key)
+        except CircuitOpen as exc:
+            # Nothing reached the API, so this attempt does not count against the message.
+            OutboundCheckin.objects.filter(pk=message.pk).update(
+                attempts=F("attempts") - 1, next_attempt_at=timezone.now()
             )
-            if message is None:
-                break
-            message.attempts += 1
-            try:
-                client.post_checkin(message.ticket_external_id, message.idempotency_key)
-            except CircuitOpen as exc:
-                # Nothing reached the API, so this attempt does not count against the message.
-                result.stopped_by = str(exc)
-                break
-            except PermanentError as exc:
+            result.stopped_by = str(exc)
+            break
+        except PermanentError as exc:
+            message.status = OutboundCheckin.Status.DEAD
+            message.last_error = str(exc)[:300]
+            dead_letter("checkin", {"key": message.idempotency_key}, str(exc))
+            result.dead += 1
+        except ConnectorError as exc:
+            message.last_error = str(exc)[:300]
+            if message.attempts >= OUTBOX_MAX_ATTEMPTS:
                 message.status = OutboundCheckin.Status.DEAD
-                message.last_error = str(exc)[:300]
                 dead_letter("checkin", {"key": message.idempotency_key}, str(exc))
                 result.dead += 1
-            except ConnectorError as exc:
-                message.last_error = str(exc)[:300]
-                if message.attempts >= OUTBOX_MAX_ATTEMPTS:
-                    message.status = OutboundCheckin.Status.DEAD
-                    dead_letter("checkin", {"key": message.idempotency_key}, str(exc))
-                    result.dead += 1
-                else:
-                    message.next_attempt_at = timezone.now() + dt.timedelta(
-                        seconds=min(300, 2**message.attempts)
-                    )
-                    result.retried += 1
             else:
-                message.status = OutboundCheckin.Status.SENT
-                message.last_error = ""
-                result.sent += 1
-            message.save()
+                message.next_attempt_at = timezone.now() + dt.timedelta(seconds=min(300, 2**message.attempts))
+                result.retried += 1
+        else:
+            message.status = OutboundCheckin.Status.SENT
+            message.last_error = ""
+            result.sent += 1
+        message.save()
     return result
 
 

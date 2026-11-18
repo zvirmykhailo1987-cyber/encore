@@ -1,9 +1,11 @@
 """HTTP client for the external ticketing API. All reliability decisions live here."""
 
+import datetime as dt
 import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 
 import httpx
 
@@ -44,9 +46,17 @@ class CallStats:
 
 
 def _retry_after(response: httpx.Response) -> float | None:
+    """Seconds to wait. The header holds either a number of seconds or an HTTP date."""
+    value = response.headers.get("Retry-After")
+    if value is None:
+        return None
     try:
-        return max(0.0, float(response.headers["Retry-After"]))
-    except (KeyError, ValueError):
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        return max(0.0, (parsedate_to_datetime(value) - dt.datetime.now(dt.UTC)).total_seconds())
+    except (TypeError, ValueError):
         return None
 
 

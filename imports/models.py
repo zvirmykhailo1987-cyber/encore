@@ -14,6 +14,7 @@ class ImportRun(models.Model):
 
     RESUMABLE = (Status.PENDING, Status.INTERRUPTED, Status.PAUSED, Status.FAILED)
 
+    organizer = models.CharField(max_length=40, default="demo")
     source_path = models.CharField(max_length=500)
     source_format = models.CharField(max_length=10, default="csv")
     source_sha256 = models.CharField(max_length=64, blank=True)
@@ -30,6 +31,9 @@ class ImportRun(models.Model):
     rows_merged = models.BigIntegerField(default=0)
     rows_skipped = models.BigIntegerField(default=0)
     rows_quarantined = models.BigIntegerField(default=0)
+    #: Records of this run later removed by an erasure request. Reconciliation must expect them to be gone.
+    contacts_erased = models.BigIntegerField(default=0)
+    aliases_erased = models.BigIntegerField(default=0)
 
     checkpoint_offset = models.BigIntegerField(default=0)
     checkpoint_row = models.BigIntegerField(default=0)
@@ -52,11 +56,12 @@ class ImportRun(models.Model):
 
     class Meta:
         constraints = [
-            # One writer at a time: two live imports could race on the email uniqueness check.
+            # One writer per organizer: two live imports could race on that organizer's email uniqueness.
+            # Different organizers share nothing, so they can run side by side.
             models.UniqueConstraint(
-                fields=["status"],
+                fields=["organizer"],
                 condition=Q(status="running", dry_run=False),
-                name="single_running_write_import",
+                name="single_running_write_import_per_organizer",
             ),
             models.CheckConstraint(
                 condition=Q(
