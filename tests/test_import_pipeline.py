@@ -173,6 +173,7 @@ def test_killing_a_real_process_then_resuming_loses_and_duplicates_nothing(tmp_p
     env = {
         **os.environ,
         "ENCORE_DEBUG": "1",
+        "ENCORE_IMPORT_SOURCE_DIR": str(tmp_path),
         "DATABASE_URL": f"postgres://{db['USER']}:{db['PASSWORD']}@{db['HOST']}:{db['PORT']}/{db['NAME']}",
     }
     process = subprocess.Popen(

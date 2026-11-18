@@ -58,4 +58,14 @@ def generous_rate_limits(monkeypatch):
     """Tests share one Redis, so limits would carry over between tests. The limit test sets its own."""
     from rest_framework.throttling import SimpleRateThrottle
 
-    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", {"key": "100000/min", "no-key": "100000/min"})
+    monkeypatch.setattr(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {"key": "100000/min", "gate-key": "100000/min", "no-key": "100000/min"},
+    )
+
+
+@pytest.fixture(autouse=True)
+def import_folder(settings, tmp_path):
+    """Each test's files live in its own folder, and the importer only reads files inside the import folder."""
+    settings.ENCORE_IMPORT_SOURCE_DIR = tmp_path

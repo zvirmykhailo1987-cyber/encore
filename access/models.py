@@ -18,11 +18,11 @@ class ApiKey(models.Model):
     class Scope(models.TextChoices):
         PLATFORM = "platform", "Platform operator"
         ORGANIZER = "organizer", "One organizer"
-        GATE = "gate", "Gate device"
+        GATE = "gate", "Gate device of one organizer"
 
     name = models.CharField(max_length=80)
     scope = models.CharField(max_length=12, choices=Scope.choices)
-    #: Set for organizer keys only.
+    #: Set for organizer and gate keys: whose data the key may touch. NULL only for platform keys.
     organizer = models.CharField(max_length=40, null=True, blank=True)
     #: Shown in lists so a person can tell keys apart. The rest of the key is never stored.
     prefix = models.CharField(max_length=16, db_index=True)
@@ -35,10 +35,10 @@ class ApiKey(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=(
-                    models.Q(scope="organizer", organizer__isnull=False)
-                    | (~models.Q(scope="organizer") & models.Q(organizer__isnull=True))
+                    models.Q(scope__in=["organizer", "gate"], organizer__isnull=False)
+                    | models.Q(scope="platform", organizer__isnull=True)
                 ),
-                name="organizer_set_only_for_organizer_keys",
+                name="organizer_set_except_for_platform_keys",
             )
         ]
 

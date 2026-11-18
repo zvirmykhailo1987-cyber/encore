@@ -23,8 +23,8 @@ gunicorn.workers.gthread.DEFAULT_WORKER_DATA_TIMEOUT = 0.02
 BODY_DRAIN_SECONDS = 2.0
 
 
-def _keepalive_after(self, conn, keepalive_requested):
-    if not keepalive_requested:
+def _keepalive_after(self, conn, keepalive):
+    if not keepalive:
         return False
     return bool(conn.parser.finish_body(deadline=time.monotonic() + BODY_DRAIN_SECONDS))
 

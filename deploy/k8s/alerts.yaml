@@ -46,6 +46,13 @@ groups:
         annotations:
           summary: No ticket page has been applied for over five minutes
           runbook: sync-stalled
+      - alert: TicketSyncNeverSucceeded
+        expr: encore_sync_ever_succeeded == 0
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: This deployment has never applied a ticket page. Check the API address and credentials
+          runbook: sync-stalled
       - alert: TicketSyncBehind
         expr: encore_sync_cursor_lag_items > 10000
         for: 10m

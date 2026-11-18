@@ -6,7 +6,7 @@ redis>=8.1,<9
 psycopg[binary]>=3.3,<3.4
 dj-database-url>=3.1,<4
 httpx>=0.28,<0.29
-# deploy/gunicorn.conf.py patches gthread internals of this major version; review before moving past it.
-gunicorn>=26.2,<27
+# deploy/gunicorn.conf.py patches gthread internals of exactly this release line; review before any upgrade.
+gunicorn==26.2.*
 starlette>=1.10,<2  # stand-in ticketing API only
 uvicorn>=0.54,<0.55  # stand-in ticketing API only

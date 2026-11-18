@@ -20,7 +20,7 @@ A recording of the whole scenario (`demo.webm`) and `Encore-Pack.html`, one file
 | The same file is imported twice | The second run creates nothing |
 | Rows are broken | Each goes to quarantine with its reason. An operator can correct and retry it, or dismiss it |
 | The import has finished | The file is read again and compared with the database |
-| A run was a mistake | The latest run can be rolled back to the exact earlier state |
+| A run was a mistake | The latest run that wrote rows can be rolled back to the earlier state, also after it failed or paused. A later run that wrote anything blocks it |
 | The API returns 429, 5xx or times out | Retries with backoff and jitter, honouring `Retry-After` given in seconds, inside a time budget |
 | The API goes down | The circuit breaker stops the traffic, then probes and recovers by itself |
 | Events arrive twice or out of order | Duplicates are ignored, and an older version never overwrites a newer one |
@@ -30,8 +30,8 @@ A recording of the whole scenario (`demo.webm`) and `Encore-Pack.html`, one file
 | Clients open connections and send nothing | Real requests are still answered at once |
 | A flood hits Django directly | It answers again as soon as the flood ends |
 | Two organizers have the same customer | Two separate contacts. Each organizer's import is isolated, and they can run side by side |
-| A person asks to be erased during a migration | They are removed, stay out of later runs, and are removed again after a restore |
-| A card number was pasted into a legacy notes field | The row is quarantined with no content kept |
+| A person asks to be erased during a migration | They are removed from contacts, broken rows, rollback snapshots and that organizer's tickets, stay out of later runs, and are removed again after a restore once the ledger copy is replayed |
+| A card number was pasted into a legacy notes field | The row is quarantined with no content kept, also when the row is broken for another reason |
 | Gates lose the network | A gate decides from a downloaded list, and uploads later. Double entries become conflicts for review |
 | A worker pod is killed on Kubernetes | The run resumes by itself from its checkpoint |
 
@@ -208,7 +208,7 @@ Every API route needs a key, except event availability (what fans refresh) and t
 |---|---|
 | `platform` | Everything: all organizers, the connector, dead letters |
 | `organizer` | That organizer's imports only. Another organizer's run answers 404, as if it did not exist |
-| `gate` | Scans, offline uploads and the gate manifest. No imports, no operations |
+| `gate` | Scans, offline uploads and the manifest of its own organizer's events. Another organizer's ticket answers like one that does not exist. No imports, no operations |
 
 ```bash
 python manage.py api_key issue --scope organizer --organizer festival-a --name "Festival box office"
@@ -216,9 +216,10 @@ python manage.py api_key list
 python manage.py api_key revoke <prefix>
 python manage.py api_key audit          # who read or changed personal data
 python manage.py api_key purge-audit    # drop records older than the retention period
+python manage.py event_owner assign festival-a E001 E002   # the feed does not say whose event it is
 ```
 
-The key is printed once and stored only as a SHA-256 digest. Keys are rate limited, and so is every address that calls without a valid key. Reads and changes of personal data are recorded with the key that made them. A developer machine with `ENCORE_DEBUG=1` and no keys at all stays open, but not to another website.
+The key is printed once and stored only as a SHA-256 digest. Keys are rate limited (gate keys higher, since one key may serve every lane of a venue), and so is every address that calls without a valid key; the address is the one the edge saw, not one a caller writes into `X-Forwarded-For`. Reads and changes of personal data, including starting and undoing imports, are recorded with the key that made them. Refused calls are counted by the rate limit, not logged. Event availability is public on purpose: it is what fans see, and it shows counts only. A developer machine with `ENCORE_DEBUG=1` and no keys at all stays open, but not to another website.
 
 This version is for synthetic data only. There are no personal user accounts: a key stands for a team or a device. Do not expose ports 8001, 8099, 5433 or 6380: the stand-in API has no authentication of its own.
 

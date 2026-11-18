@@ -16,6 +16,10 @@ if not SECRET_KEY:
 
 # Empty means write endpoints are open on a debug machine and closed everywhere else.
 ENCORE_OPERATOR_TOKEN = os.environ.get("ENCORE_OPERATOR_TOKEN", "")
+if ENCORE_OPERATOR_TOKEN and len(ENCORE_OPERATOR_TOKEN) < 32 and not DEBUG:
+    raise RuntimeError(
+        "ENCORE_OPERATOR_TOKEN must be at least 32 characters; issue keys with manage.py api_key"
+    )
 #: Records of personal-data access older than this are purged by `manage.py api_key purge-audit`.
 ENCORE_AUDIT_RETENTION_DAYS = int(os.environ.get("ENCORE_AUDIT_RETENTION_DAYS", "90"))
 
@@ -106,8 +110,13 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["access.permissions.Authenticated"],
     "DEFAULT_THROTTLE_CLASSES": ["access.throttles.PerKeyThrottle"],
+    # One proxy (the edge) in front of Django: the address it saw is the last X-Forwarded-For entry. Without
+    # this, a caller could send its own header and get a fresh rate-limit bucket on every request.
+    "NUM_PROXIES": int(os.environ.get("ENCORE_NUM_PROXIES", "1")),
     "DEFAULT_THROTTLE_RATES": {
         "key": os.environ.get("ENCORE_RATE_PER_KEY", "1200/min"),
+        # One gate key may serve every lane of a venue at doors-open.
+        "gate-key": os.environ.get("ENCORE_RATE_PER_GATE_KEY", "12000/min"),
         "no-key": os.environ.get("ENCORE_RATE_WITHOUT_KEY", "60/min"),
     },
     "UNAUTHENTICATED_USER": None,
@@ -127,6 +136,7 @@ CELERY_BEAT_SCHEDULE = {
     "reap-stale-import-runs": {"task": "imports.reap_stale_runs", "schedule": 15.0},
     "sync-tickets": {"task": "ticketing.sync_tickets", "schedule": 10.0},
     "flush-outbound-checkins": {"task": "ticketing.flush_outbox", "schedule": 5.0},
+    "purge-old-webhook-events": {"task": "ticketing.purge_webhook_events", "schedule": 3600.0},
 }
 
 # Import pipeline
@@ -147,3 +157,5 @@ TICKETING_WEBHOOK_SECRET = os.environ.get(
 )
 TICKETING_IS_MOCK = os.environ.get("TICKETING_IS_MOCK", "1") == "1"
 TICKETING_RATE_PER_SECOND = float(os.environ.get("TICKETING_RATE_PER_SECOND", "20"))
+#: Webhook events are kept only to recognise a provider's repeat deliveries, which arrive within days.
+TICKETING_WEBHOOK_RETENTION_DAYS = int(os.environ.get("TICKETING_WEBHOOK_RETENTION_DAYS", "30"))

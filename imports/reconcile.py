@@ -1,16 +1,18 @@
 """Independent proof that a run did what its counters say.
 
-The file is read again from the first byte and compared with the database. Nothing here trusts the code
-path that wrote the rows.
+The file is read again from the first byte and compared with the database. Fields are compared with what
+the contact holds now, not with a hash the import wrote, so a field the import failed to save is caught.
 """
 
+import json
 from itertools import islice
 from pathlib import Path
 
 from django.db import connection
+from django.db.models import Count
 
 from crm.erasure_keys import erased_hashes, subject_hash
-from crm.models import Contact, ContactAlias
+from crm.models import IMPORTABLE_FIELDS, Contact, ContactAlias
 
 from .mapping import RowDefect, clean_row
 from .models import ImportRun, QuarantineRow
@@ -18,6 +20,27 @@ from .source import iter_csv, iter_jsonl, iter_mongoexport, read_header
 
 BATCH = 5000
 SAMPLE_LIMIT = 20
+
+
+def _same(stored: object, expected: object) -> bool:
+    return json.dumps(stored, default=str) == json.dumps(expected, default=str)
+
+
+def fields_differ(row_fields: dict, contact: dict, shared: bool) -> bool:
+    """Whether the contact does not hold what this row says.
+
+    A contact that two legacy ids merged into keeps the first value of each field, so only the email is
+    compared there. Fields a person curated in the new CRM are theirs, not the import's.
+    """
+    curated = set(contact["curated_fields"] or [])
+    for name, value in row_fields.items():
+        if value is None or name in curated:
+            continue
+        if shared and name != "email":
+            continue
+        if not _same(contact[name], value):
+            return True
+    return False
 
 
 def reconcile_run(run: ImportRun) -> dict:
@@ -76,23 +99,32 @@ def reconcile_run(run: ImportRun) -> dict:
             ]
             erased_rows += len(clean) - len(remaining)
             clean = remaining
-        stored = {
-            src_uid: (row_hash, email, curated)
-            for src_uid, row_hash, email, curated in ContactAlias.objects.filter(
+        stored = dict(
+            ContactAlias.objects.filter(
                 organizer=run.organizer, src_uid__in=[row.src_uid for row in clean]
-            ).values_list("src_uid", "row_hash", "contact__email", "contact__curated_fields")
+            ).values_list("src_uid", "contact_id")
+        )
+        contact_ids = set(stored.values())
+        contacts = {
+            values["pk"]: values
+            for values in Contact.objects.filter(pk__in=contact_ids).values(
+                "pk", *IMPORTABLE_FIELDS, "curated_fields"
+            )
         }
+        alias_counts = dict(
+            ContactAlias.objects.filter(contact_id__in=contact_ids)
+            .values("contact_id")
+            .annotate(n=Count("pk"))
+            .values_list("contact_id", "n")
+        )
         for row in clean:
-            found = stored.get(row.src_uid)
-            if found is None:
+            contact_id = stored.get(row.src_uid)
+            if contact_id is None or contact_id not in contacts:
                 missing_total += 1
                 if len(missing) < SAMPLE_LIMIT:
                     missing.append(row.src_uid)
                 continue
-            row_hash, stored_email, curated = found
-            email = row.fields["email"]
-            email_differs = email is not None and stored_email != email and "email" not in curated
-            if row_hash != row.row_hash or email_differs:
+            if fields_differ(row.fields, contacts[contact_id], alias_counts.get(contact_id, 0) > 1):
                 suspects[row.src_uid] = row.row_number
             else:
                 suspects.pop(row.src_uid, None)

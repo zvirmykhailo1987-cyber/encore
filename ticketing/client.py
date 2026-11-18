@@ -135,7 +135,10 @@ class TicketingClient:
 
     def fetch_tickets(self, cursor: str, limit: int = 500) -> dict:
         response = self._send("GET", "/v1/tickets", {"cursor": cursor, "limit": limit}, None, None)
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise ConnectorError("The ticket feed answered with something that is not JSON") from exc
 
     def post_checkin(self, ticket_external_id: str, idempotency_key: str) -> dict:
         """Safe to repeat because the key is stable. A POST without a key is never retried by this client."""
@@ -148,4 +151,8 @@ class TicketingClient:
             {"ticket": ticket_external_id},
             {"Idempotency-Key": idempotency_key},
         )
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:
+            # A 2xx means the check-in was recorded. An unreadable body does not undo that.
+            return {}

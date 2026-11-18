@@ -13,8 +13,11 @@ from imports.models import ImportRun, QuarantineRow
 from ticketing.models import ConnectorState, DeadLetter, OutboundCheckin, ScanConflict, SyncCursor
 
 
-def _line(name: str, value: float, help_text: str) -> str:
-    return f"# HELP {name} {help_text}\n# TYPE {name} gauge\n{name} {value}\n"
+def _line(name: str, value: float | None, help_text: str) -> str:
+    """An unknown value has no sample at all. Prometheus then reports it absent, which an alert can see;
+    a 0 would look like good news."""
+    sample = "" if value is None else f"{name} {value}\n"
+    return f"# HELP {name} {help_text}\n# TYPE {name} gauge\n{sample}"
 
 
 def _age(when) -> float:
@@ -28,12 +31,12 @@ def render_metrics() -> str:
     oldest_pending = pending.aggregate(value=Min("created_at"))["value"]
     state = ConnectorState.objects.filter(name="ticketing").first()
     cursor = SyncCursor.objects.filter(name="tickets").first()
-    lag = 0.0
+    lag: float | None = None
     if cursor and cursor.feed_head is not None:
         try:
             lag = max(0.0, float(cursor.feed_head) - float(cursor.cursor or 0))
         except ValueError:
-            lag = 0.0
+            lag = None  # the cursor is not a number for this API, so lag cannot be computed
     rows = [
         ("encore_imports_running", running.count(), "Imports running now"),
         ("encore_import_heartbeat_age_seconds", _age(oldest_beat), "Oldest heartbeat among running imports"),
@@ -81,8 +84,13 @@ def render_metrics() -> str:
         ("encore_sync_cursor_lag_items", lag, "Items behind the ticketing feed"),
         (
             "encore_sync_seconds_since_success",
-            _age(cursor.last_success_at) if cursor else 0.0,
-            "Seconds since a ticket page was last applied",
+            _age(cursor.last_success_at) if cursor and cursor.last_success_at else None,
+            "Seconds since a ticket page was last applied. Absent until the first success",
+        ),
+        (
+            "encore_sync_ever_succeeded",
+            1 if cursor and cursor.last_success_at else 0,
+            "0 until a ticket page has been applied at least once",
         ),
     ]
     return "".join(_line(*row) for row in rows)

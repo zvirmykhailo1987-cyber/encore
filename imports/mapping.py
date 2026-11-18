@@ -115,7 +115,7 @@ def _luhn_valid(digits: str) -> bool:
     return total % 10 == 0
 
 
-def _contains_card_number(values: dict[str, str]) -> bool:
+def contains_card_number(values: dict[str, str]) -> bool:
     """Staff paste odd things into legacy notes. A card number must not travel into a new system or its logs."""
     for column, value in values.items():
         if column == "MOBILE":
@@ -131,7 +131,7 @@ def clean_row(row_number: int, values: dict[str, str], system: str) -> CleanRow:
     for value in values.values():
         if has_bad_encoding(value):
             raise RowDefect("bad_encoding")
-    if _contains_card_number(values):
+    if contains_card_number(values):
         raise RowDefect(CARD_NUMBER_DEFECT)
     legacy_id = values.get("CUST_ID", "").strip()
     if not legacy_id:

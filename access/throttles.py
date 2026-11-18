@@ -8,6 +8,14 @@ from .permissions import principal
 class PerKeyThrottle(SimpleRateThrottle):
     scope = "key"
 
+    def allow_request(self, request, view):
+        # Gate keys get their own, higher rate. The rate is chosen per request, before the window is checked.
+        who = principal(request)
+        self.scope = "gate-key" if who is not None and who.scope == "gate" else "key"
+        self.rate = self.get_rate()
+        self.num_requests, self.duration = self.parse_rate(self.rate)
+        return super().allow_request(request, view)
+
     def get_cache_key(self, request, view):
         who = principal(request)
         if who is None:

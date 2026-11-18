@@ -20,13 +20,21 @@ from typing import cast
 
 from django.conf import settings
 from django.db import IntegrityError, connection, connections, transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from crm.erasure_keys import erased_hashes, subject_hash
 from crm.models import IMPORTABLE_FIELDS, Contact, ContactAlias
 
-from .mapping import CARD_NUMBER_DEFECT, COLUMN_MAP, REQUIRED_COLUMNS, CleanRow, RowDefect, clean_row
+from .mapping import (
+    CARD_NUMBER_DEFECT,
+    COLUMN_MAP,
+    REQUIRED_COLUMNS,
+    CleanRow,
+    RowDefect,
+    clean_row,
+    contains_card_number,
+)
 from .models import AliasChange, ContactChange, ImportBatch, ImportRun, QuarantineRow
 from .reconcile import reconcile_run
 from .source import (
@@ -46,6 +54,19 @@ logger = logging.getLogger(__name__)
 
 class RunBusy(Exception):
     """Another write import is running, or this run cannot be started in its current state."""
+
+
+class OrganizerBusy(RunBusy):
+    """Another write import for the same organizer holds the writer slot. Worth trying again later."""
+
+
+def lock_organizer(organizer: str) -> None:
+    """Serialises every writer of one organizer's contacts: batches, rollback, reprocessing, erasure.
+
+    Held until the surrounding transaction ends. Different organizers never wait for each other.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ["encore-organizer:" + organizer])
 
 
 class LeaseLost(Exception):
@@ -89,12 +110,33 @@ def records_for(run: ImportRun, path: Path) -> Iterator[Record]:
     return iter_csv(path, run.header, run.checkpoint_offset, run.checkpoint_row)
 
 
+def _raw_texts(raw: dict) -> dict[str, str]:
+    """Every string a stored row would carry, whatever shape the reader gave it."""
+    texts: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(value, list):
+            texts.update({f"{key}.{index}": str(item) for index, item in enumerate(value)})
+        else:
+            texts[str(key)] = "" if value is None else str(value)
+    return texts
+
+
 def _defect_row(run: ImportRun, record: Record, reason: str, detail: str = "") -> QuarantineRow:
     raw = record.raw
     if raw is None and record.values is not None:
         raw = {key: clean_for_storage(value) for key, value in record.values.items()}
+    raw = raw or {}
+    # A row broken for another reason can still hold a pasted card number. Nothing of it is kept then.
+    if contains_card_number(_raw_texts(raw)) or contains_card_number({"detail": detail}):
+        return QuarantineRow(
+            run=run,
+            row_number=record.row_number,
+            reason=reason,
+            detail="Content withheld: the row contains a card number",
+            raw={},
+        )
     return QuarantineRow(
-        run=run, row_number=record.row_number, reason=reason, detail=clean_for_storage(detail), raw=raw or {}
+        run=run, row_number=record.row_number, reason=reason, detail=clean_for_storage(detail), raw=raw
     )
 
 
@@ -170,10 +212,11 @@ def _apply_clean_rows(
             organizer=organizer, src_uid__in=src_uids
         )
     }
-    contacts_by_email = {c.email: c for c in Contact.objects.filter(organizer=organizer, email__in=emails)}
+    # One Python object per contact. Two objects for one row would let one of them lose its changes.
+    by_pk = {c.pk: c for c in Contact.objects.filter(organizer=organizer, email__in=emails)}
     for known in aliases.values():
-        if known.contact.email:
-            contacts_by_email.setdefault(known.contact.email, known.contact)
+        known.contact = by_pk.setdefault(known.contact_id, known.contact)
+    contacts_by_email = {c.email: c for c in by_pk.values() if c.email}
 
     new_contacts: list[Contact] = []
     new_aliases: list[ContactAlias] = []
@@ -339,11 +382,23 @@ def _claim(run_id: int) -> tuple[ImportRun, str]:
             run.error = ""
             run.save()
     except IntegrityError as exc:
-        raise RunBusy("Another write import is already running for this organizer") from exc
+        raise OrganizerBusy("Another write import is already running for this organizer") from exc
     return run, token
 
 
+def _check_source_path(path: Path) -> None:
+    """The file named at start must still be that file, inside the drop folder, and not a link elsewhere."""
+    root = Path(settings.ENCORE_IMPORT_SOURCE_DIR).resolve()
+    try:
+        real = path.resolve(strict=True)
+    except OSError as exc:
+        raise SourceError("The source file is gone") from exc
+    if path.is_symlink() or real != path or not real.is_relative_to(root):
+        raise SourceError("The source file was replaced by a link or moved outside the import folder")
+
+
 def _prepare(run: ImportRun, path: Path) -> None:
+    _check_source_path(path)
     digest = file_sha256(path)
     if run.source_sha256 and run.source_sha256 != digest:
         raise SourceError("The source file changed since this run started. Start a new run for the new file.")
@@ -372,6 +427,8 @@ def _commit_batch(run: ImportRun, token: str, batch: list[Record], overlay: DryR
     """Commit one batch. Returns True when an operator asked this run to pause."""
     started = time.monotonic()
     with transaction.atomic():
+        if overlay is None:
+            lock_organizer(run.organizer)
         current = ImportRun.objects.select_for_update().get(pk=run.pk)
         if current.lease_token != token or current.status != ImportRun.Status.RUNNING:
             raise LeaseLost(f"Run {run.pk} is no longer owned by this worker")
@@ -491,24 +548,42 @@ def reap_stale_runs(stale_seconds: int | None = None) -> list[int]:
     return stale
 
 
+#: A run in one of these states wrote batches that are now final, so it can be undone.
+ROLLBACK_FROM = (
+    ImportRun.Status.COMPLETED,
+    ImportRun.Status.PAUSED,
+    ImportRun.Status.INTERRUPTED,
+    ImportRun.Status.FAILED,
+)
+
+
 def rollback_run(run_id: int) -> ImportRun:
-    """Undo one completed run. Only the latest applied run can be undone, or history would be rewritten."""
+    """Undo one run. Only the latest run that wrote anything can be undone, or history would be rewritten."""
     with transaction.atomic():
+        organizer = ImportRun.objects.values_list("organizer", flat=True).get(pk=run_id)
+        lock_organizer(organizer)
         run = ImportRun.objects.select_for_update().get(pk=run_id)
-        if run.status != ImportRun.Status.COMPLETED or run.dry_run:
+        if run.dry_run or run.status not in ROLLBACK_FROM:
             raise RunBusy(f"Run {run_id} cannot be rolled back from status {run.status}")
-        later = ImportRun.objects.filter(
-            organizer=run.organizer,
-            pk__gt=run.pk,
-            dry_run=False,
-            status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING],
+        later = (
+            ImportRun.objects.filter(organizer=run.organizer, pk__gt=run.pk, dry_run=False)
+            .exclude(status=ImportRun.Status.ROLLED_BACK)
+            .filter(Q(batches_committed__gt=0) | Q(status=ImportRun.Status.RUNNING))
         )
         if later.exists():
-            raise RunBusy("A later import was applied. Roll that one back first.")
+            raise RunBusy("A later import has written rows. Roll that one back first.")
         ContactAlias.objects.filter(run=run).delete()
         for change in (
             ContactChange.objects.filter(run=run).select_related("contact").iterator(chunk_size=2000)
         ):
+            before_email = change.before.get("email")
+            if before_email and subject_hash(run.organizer, str(before_email)) in erased_hashes(
+                run.organizer, {str(before_email)}
+            ):
+                # The earlier state belongs to a person who has since been erased. It must not come back.
+                ContactAlias.objects.filter(contact=change.contact).delete()
+                change.contact.delete()
+                continue
             restore_snapshot(change.contact, change.before)
             change.contact.save(update_fields=[*IMPORTABLE_FIELDS, "updated_at"])
         for alias_change in AliasChange.objects.filter(run=run).iterator(chunk_size=2000):
@@ -527,6 +602,7 @@ def rollback_run(run_id: int) -> ImportRun:
 def reprocess_quarantined(row: QuarantineRow, corrected: dict[str, str]) -> QuarantineRow:
     """Re-import one quarantined row with operator corrections, keeping the run's counters exact."""
     with transaction.atomic():
+        lock_organizer(ImportRun.objects.values_list("organizer", flat=True).get(pk=row.run_id))
         run = ImportRun.objects.select_for_update().get(pk=row.run_id)
         if run.dry_run or run.status not in (ImportRun.Status.COMPLETED, ImportRun.Status.PAUSED):
             raise RunBusy(f"Rows of a {'dry' if run.dry_run else run.status} run cannot be reprocessed")

@@ -2,14 +2,29 @@ from celery import shared_task
 from django.conf import settings
 
 from .models import ImportRun
-from .pipeline import RunBusy, execute_run, reap_stale_runs
+from .pipeline import OrganizerBusy, RunBusy, execute_run, reap_stale_runs
 from .reconcile import reconcile_run
 
+#: How long a run waits for another import of the same organizer to finish: 120 tries, 30 seconds apart.
+BUSY_RETRY_SECONDS = 30
+BUSY_RETRIES = 120
 
-@shared_task(name="imports.run_import", acks_late=True)
-def run_import(run_id: int) -> None:
+
+@shared_task(name="imports.run_import", acks_late=True, bind=True, max_retries=BUSY_RETRIES)
+def run_import(self, run_id: int) -> None:
     try:
         execute_run(run_id)
+    except OrganizerBusy as exc:
+        # Not an error of this run: it waits its turn, and the screen says why it has not started.
+        ImportRun.objects.filter(pk=run_id).exclude(status=ImportRun.Status.RUNNING).update(
+            error="Waiting: another import for this organizer is running"
+        )
+        if self.request.retries >= BUSY_RETRIES:
+            ImportRun.objects.filter(pk=run_id).exclude(status=ImportRun.Status.RUNNING).update(
+                error="Not started: another import for this organizer kept running. Resume it later."
+            )
+            return
+        raise self.retry(exc=exc, countdown=BUSY_RETRY_SECONDS) from exc
     except RunBusy:
         # A redelivered task for a run that is already handled has nothing left to do.
         return

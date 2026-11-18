@@ -11,6 +11,7 @@ from rest_framework.test import APIClient
 
 from access.models import ApiKey, digest
 from imports.models import ImportRun, QuarantineRow
+from ticketing.models import EventOwner, ScanConflict, Ticket
 from ticketing.services import apply_ticket_versions
 
 pytestmark = pytest.mark.django_db
@@ -51,7 +52,8 @@ def keys(settings):
         "platform": ApiKey.issue("ops", "platform")[1],
         "festival": ApiKey.issue("festival staff", "organizer", "festival-a")[1],
         "club": ApiKey.issue("club staff", "organizer", "club-b")[1],
-        "gate": ApiKey.issue("north gate", "gate")[1],
+        "gate": ApiKey.issue("north gate", "gate", "festival-a")[1],
+        "club_gate": ApiKey.issue("club door", "gate", "club-b")[1],
     }
 
 
@@ -149,6 +151,7 @@ def test_an_organizer_key_imports_for_itself_only(keys, settings, tmp_path, monk
 
 
 def test_a_gate_key_scans_but_reads_no_imports_and_runs_no_operations(keys):
+    EventOwner.objects.create(event_external_id="E", organizer="festival-a")
     apply_ticket_versions([("T1", "E", None, "valid", 1)])
     gate = client(keys["gate"])
     scan = gate.post("/api/v1/scans", {"ticket": "T1", "scan_id": str(uuid.uuid4())}, format="json")
@@ -157,6 +160,92 @@ def test_a_gate_key_scans_but_reads_no_imports_and_runs_no_operations(keys):
     for path in ("/api/v1/imports/runs", "/api/v1/connector/dead-letters", "/api/v1/connector/health"):
         assert gate.get(path).status_code == 403, path
     assert gate.post("/api/v1/connector/faults", {"outage": True}, format="json").status_code == 403
+
+
+def test_a_gate_cannot_see_or_burn_another_organizers_tickets(keys):
+    EventOwner.objects.create(event_external_id="FEST", organizer="festival-a")
+    EventOwner.objects.create(event_external_id="CLUB", organizer="club-b")
+    apply_ticket_versions([("F1", "FEST", None, "valid", 1), ("C1", "CLUB", None, "valid", 1)])
+    festival_gate = client(keys["gate"])
+    # Another organizer's event and ticket answer exactly like ones that do not exist.
+    assert festival_gate.get("/api/v1/events/CLUB/manifest").status_code == 404
+    assert festival_gate.get("/api/v1/events/NOPE/manifest").status_code == 404
+    foreign = festival_gate.post("/api/v1/scans", {"ticket": "C1", "scan_id": "s-1"}, format="json")
+    missing = festival_gate.post("/api/v1/scans", {"ticket": "NOPE", "scan_id": "s-2"}, format="json")
+    assert (
+        (foreign.status_code, foreign.json())
+        == (missing.status_code, missing.json())
+        == (
+            404,
+            {"outcome": "unknown_ticket", "checked_in_at": None},
+        )
+    )
+    upload = festival_gate.post(
+        "/api/v1/scans/offline",
+        {"device": "d1", "scans": [{"ticket": "C1", "scan_id": "s-3", "scanned_at": "2026-01-01T10:00:00Z"}]},
+        format="json",
+    )
+    assert upload.json()["results"] == [{"scan_id": "s-3", "result": "conflict"}]
+    assert ScanConflict.objects.get(scan_id="s-3").organizer == "festival-a"
+    assert Ticket.objects.get(external_id="C1").checked_in_at is None, "The club's ticket was not burned"
+    # Its own event works, and the club's own gate can admit its ticket.
+    assert [t["ticket"] for t in festival_gate.get("/api/v1/events/FEST/manifest").json()["tickets"]] == [
+        "F1"
+    ]
+    club = client(keys["club_gate"]).post("/api/v1/scans", {"ticket": "C1", "scan_id": "s-4"}, format="json")
+    assert club.json()["outcome"] == "admitted"
+
+
+def test_a_gate_key_has_its_own_higher_limit(keys, monkeypatch):
+    from django.core.cache import cache
+    from rest_framework.throttling import SimpleRateThrottle
+
+    monkeypatch.setattr(
+        SimpleRateThrottle, "THROTTLE_RATES", {"key": "1/min", "gate-key": "3/min", "no-key": "100000/min"}
+    )
+    cache.clear()
+    gate = client(keys["gate"])
+    assert [gate.get("/api/v1/whoami").status_code for _ in range(4)] == [200, 200, 200, 429]
+    festival = client(keys["festival"])
+    assert [festival.get("/api/v1/whoami").status_code for _ in range(2)] == [200, 429]
+
+
+def test_a_forged_forwarded_for_header_does_not_reset_the_limit(keys, monkeypatch):
+    from django.core.cache import cache
+    from rest_framework.throttling import SimpleRateThrottle
+
+    monkeypatch.setattr(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {"key": "100000/min", "gate-key": "100000/min", "no-key": "2/min"},
+    )
+    cache.clear()
+    answers = [
+        client().get("/api/v1/imports/runs", HTTP_X_FORWARDED_FOR=f"10.0.0.{n}, 203.0.113.9").status_code
+        for n in range(4)
+    ]
+    assert answers == [401, 401, 429, 429], "The edge's own entry, not the caller's, decides the bucket"
+
+
+def test_starting_and_undoing_imports_is_logged(keys, settings, tmp_path, monkeypatch):
+    from access.models import AccessRecord
+
+    monkeypatch.setattr("imports.views.run_import.delay", lambda pk: None)
+    settings.ENCORE_IMPORT_SOURCE_DIR = tmp_path
+    (tmp_path / "festival-a").mkdir()
+    (tmp_path / "festival-a" / "fans.csv").write_text("CUST_ID\n", encoding="utf-8")
+    festival = client(keys["festival"])
+    run_id = festival.post("/api/v1/imports/runs", {"source": "fans.csv"}, format="json").json()["id"]
+    festival.post(f"/api/v1/imports/runs/{run_id}/rollback")
+    festival.get("/api/v1/imports/runs")
+    logged = list(AccessRecord.objects.order_by("at").values_list("method", "path"))
+    assert logged == [("POST", "/api/v1/imports/runs"), ("POST", f"/api/v1/imports/runs/{run_id}/rollback")]
+
+
+def test_runs_show_the_file_name_not_the_server_path(keys, tmp_path):
+    run = make_run("festival-a", tmp_path)
+    body = client(keys["festival"]).get(f"/api/v1/imports/runs/{run.pk}").json()
+    assert body["source_path"] == "festival-a.csv"
 
 
 def test_an_organizer_key_cannot_scan_or_run_the_connector(keys):
@@ -172,7 +261,7 @@ def test_whoami_tells_a_client_what_its_key_can_do(keys):
         "scope": "organizer",
         "organizer": "festival-a",
     }
-    assert client(keys["gate"]).get("/api/v1/whoami").json() == {"scope": "gate", "organizer": None}
+    assert client(keys["gate"]).get("/api/v1/whoami").json() == {"scope": "gate", "organizer": "festival-a"}
     assert client().get("/api/v1/whoami").status_code == 401
 
 
@@ -180,7 +269,9 @@ def test_availability_stays_public_and_is_never_rate_limited(keys, monkeypatch):
     from django.core.cache import cache
     from rest_framework.throttling import SimpleRateThrottle
 
-    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", {"key": "1/min", "no-key": "1/min"})
+    monkeypatch.setattr(
+        SimpleRateThrottle, "THROTTLE_RATES", {"key": "1/min", "gate-key": "1/min", "no-key": "1/min"}
+    )
     cache.clear()
     assert {client().get("/api/v1/events/E/availability").status_code for _ in range(5)} == {200}
 
@@ -207,7 +298,9 @@ def test_key_command_refuses_an_organizer_key_without_an_organizer():
     with pytest.raises(CommandError):
         call_command("api_key", "issue", "--scope", "organizer", "--name", "x")
     with pytest.raises(CommandError):
-        call_command("api_key", "issue", "--scope", "gate", "--organizer", "festival-a", "--name", "x")
+        call_command("api_key", "issue", "--scope", "gate", "--name", "a gate belongs to an organizer")
+    with pytest.raises(CommandError):
+        call_command("api_key", "issue", "--scope", "platform", "--organizer", "festival-a", "--name", "x")
 
 
 # ---------------------------------------------------------------- limits and the access log
@@ -217,7 +310,11 @@ def test_callers_without_a_key_are_slowed_down(keys, monkeypatch):
     from django.core.cache import cache
     from rest_framework.throttling import SimpleRateThrottle
 
-    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", {"key": "100000/min", "no-key": "3/min"})
+    monkeypatch.setattr(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {"key": "100000/min", "gate-key": "100000/min", "no-key": "3/min"},
+    )
     cache.clear()
     answers = [client().get("/api/v1/imports/runs").status_code for _ in range(5)]
     assert answers == [401, 401, 401, 429, 429]
@@ -230,7 +327,11 @@ def test_each_key_has_its_own_limit(keys, monkeypatch):
     from django.core.cache import cache
     from rest_framework.throttling import SimpleRateThrottle
 
-    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", {"key": "2/min", "no-key": "100000/min"})
+    monkeypatch.setattr(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {"key": "2/min", "gate-key": "100000/min", "no-key": "100000/min"},
+    )
     cache.clear()
     festival, club = client(keys["festival"]), client(keys["club"])
     assert [festival.get("/api/v1/imports/runs").status_code for _ in range(3)] == [200, 200, 429]
@@ -314,4 +415,7 @@ def test_openapi_documents_every_route_with_the_scope_the_code_enforces():
             logged = "logged" in operation.get("x-scope", "")
             from access.audit import Audited
 
-            assert logged == issubclass(cls, Audited), f"{path}: access log flag differs from the code"
+            audited = issubclass(cls, Audited) and (
+                cls.audited_methods is None or method.upper() in cls.audited_methods
+            )
+            assert logged == audited, f"{method.upper()} {path}: access log flag differs from the code"

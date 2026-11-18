@@ -15,6 +15,21 @@ class Ticket(models.Model):
         return self.external_id
 
 
+class EventOwner(models.Model):
+    """Which organizer an event belongs to. The ticket feed does not say, so the platform records it.
+
+    A gate key of an organizer sees tickets of that organizer's events only. A ticket of an event with no owner
+    is reachable with a platform key alone.
+    """
+
+    event_external_id = models.CharField(max_length=64, unique=True)
+    organizer = models.CharField(max_length=40, db_index=True)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.event_external_id} -> {self.organizer}"
+
+
 class SyncCursor(models.Model):
     name = models.CharField(max_length=40, unique=True)
     cursor = models.CharField(max_length=100, blank=True)
@@ -88,6 +103,8 @@ class ScanConflict(models.Model):
     scanned_at = models.DateTimeField()
     reason = models.CharField(max_length=20)
     first_scan_id = models.CharField(max_length=64, blank=True)
+    #: The organizer of the gate key that uploaded it. NULL for platform uploads.
+    organizer = models.CharField(max_length=40, null=True, blank=True)
     reviewed = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

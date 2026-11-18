@@ -5,7 +5,8 @@ info:
   description: >
     The API of this demo. Every route needs an API key, except event availability and the signed webhook.
     A key has one scope. platform: everything. organizer: that organizer's imports only, and another
-    organizer's run answers 404 as if it did not exist. gate: scans and the gate manifest.
+    organizer's run answers 404 as if it did not exist. gate: scans and the manifest of its own
+    organizer's events; another organizer's ticket or event answers like one that does not exist.
     A missing, unknown or revoked key is 401; a key without the scope is 403; too many calls is 429.
     Reads and changes of personal data are written to an access log.
     Errors are {"error": "..."} or {"detail": "..."}. /metrics, /healthz and /livez are outside this document.
@@ -90,7 +91,7 @@ paths:
           content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Run"}}}}
     post:
       summary: Start an import
-      x-scope: "organizer or platform"
+      x-scope: "organizer or platform; logged"
       requestBody:
         content:
           application/json:
@@ -113,7 +114,7 @@ paths:
   /imports/runs/{id}/{action}:
     post:
       summary: pause, resume, rollback or reconcile
-      x-scope: "organizer or platform"
+      x-scope: "organizer or platform; logged"
       parameters:
         - {name: id, in: path, required: true, schema: {type: integer}}
         - {name: action, in: path, required: true, schema: {type: string, enum: [pause, resume, rollback, reconcile]}}

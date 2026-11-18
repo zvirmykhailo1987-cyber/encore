@@ -32,6 +32,42 @@ SKIP = {
 
 MUTATIONS = [
     (
+        "Two objects for one contact: one loses its changes",
+        "imports/pipeline.py",
+        "        known.contact = by_pk.setdefault(known.contact_id, known.contact)",
+        "        pass",
+    ),
+    (
+        "Rollback ignores a later paused run that wrote rows",
+        "imports/pipeline.py",
+        "            .filter(Q(batches_committed__gt=0) | Q(status=ImportRun.Status.RUNNING))",
+        "            .filter(status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING])",
+    ),
+    (
+        "A card number survives in a row broken for another reason",
+        "imports/pipeline.py",
+        '    if contains_card_number(_raw_texts(raw)) or contains_card_number({"detail": detail}):',
+        "    if False:",
+    ),
+    (
+        "A gate sees every organizer's tickets",
+        "ticketing/services.py",
+        "        return Ticket.objects.all()\n    owned = ",
+        "        return Ticket.objects.all()\n    return Ticket.objects.all()\n    owned = ",
+    ),
+    (
+        "Reconciliation trusts the stored fields",
+        "imports/reconcile.py",
+        "        if not _same(contact[name], value):",
+        "        if False:",
+    ),
+    (
+        "A task that started before an outage closes the breaker again",
+        "ticketing/services.py",
+        '        if moved and not (breaker.state == "open" and current.state != "open"):',
+        "        if False:",
+    ),
+    (
         "One organizer's contacts merge with another's",
         "imports/pipeline.py",
         "Contact.objects.filter(organizer=organizer, email__in=emails)",
@@ -155,7 +191,7 @@ MUTATIONS = [
     (
         "A card number pasted into a notes field is imported",
         "imports/mapping.py",
-        "    if _contains_card_number(values):\n",
+        "    if contains_card_number(values):\n",
         "    if False:\n",
     ),
     (

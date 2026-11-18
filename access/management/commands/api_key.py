@@ -32,8 +32,10 @@ class Command(BaseCommand):
         action = options["action"]
         if action == "issue":
             scope, organizer = options["scope"], options.get("organizer")
-            if (scope == ApiKey.Scope.ORGANIZER) != bool(organizer):
-                raise CommandError("--organizer is required for organizer keys and refused for the others")
+            if (scope != ApiKey.Scope.PLATFORM) != bool(organizer):
+                raise CommandError(
+                    "--organizer is required for organizer and gate keys, and refused for platform keys"
+                )
             if organizer and not ORGANIZER.match(organizer):
                 raise CommandError("An organizer is lower case letters, digits, - and _")
             key, plaintext = ApiKey.issue(options["name"], scope, organizer)

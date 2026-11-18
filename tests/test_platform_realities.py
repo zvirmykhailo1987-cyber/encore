@@ -413,7 +413,10 @@ def test_metrics_report_what_the_alerts_watch():
     body = Client().get("/metrics").content.decode()
     assert "encore_outbox_pending 1\n" in body
     alerts = (Path(__file__).parent.parent / "deploy" / "k8s" / "alerts.yaml").read_text(encoding="utf-8")
-    exported = {line.split()[0] for line in body.splitlines() if line.startswith("encore_")}
+    # Declared names, sampled or not: a metric that is unknown right now has a HELP line and no sample.
+    exported = {line.split()[2] for line in body.splitlines() if line.startswith("# HELP encore_")}
+    samples = {line.split()[0] for line in body.splitlines() if line.startswith("encore_")}
+    assert "encore_sync_seconds_since_success" not in samples, "Never synced is absent, not 0 seconds"
     named = {
         word for word in alerts.replace("(", " ").replace(")", " ").split() if word.startswith("encore_")
     }

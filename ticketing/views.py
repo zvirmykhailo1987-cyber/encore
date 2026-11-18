@@ -20,13 +20,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from access.audit import Audited
-from access.permissions import GateAccess, PlatformOnly, Public
+from access.permissions import GateAccess, PlatformOnly, Public, caller_organizer
 from mock_api.app import Faults
 
 from .models import ConnectorMetric, ConnectorState, DeadLetter, OutboundCheckin, SyncCursor
 from .resilience import CircuitBreaker, RetryPolicy
 from .security import webhook_is_authentic
-from .services import apply_offline_scan, event_availability, event_manifest, handle_webhook, scan_ticket
+from .services import (
+    apply_offline_scan,
+    event_availability,
+    event_manifest,
+    handle_webhook,
+    owns_event,
+    scan_ticket,
+)
 
 AVAILABILITY_TTL_SECONDS = 2
 MANIFEST_PAGE = 5000
@@ -45,7 +52,7 @@ def ticketing_webhook(request: HttpRequest) -> JsonResponse:
     try:
         payload = json.loads(request.body)
         event_id = payload["id"]
-        if not isinstance(event_id, str) or not event_id:
+        if not isinstance(event_id, str) or not 0 < len(event_id) <= 64:
             raise ValueError
     except (ValueError, KeyError, TypeError):
         return JsonResponse({"error": "malformed event"}, status=400)
@@ -58,10 +65,13 @@ class ScanView(APIView):
     def post(self, request: Request) -> Response:
         ticket, scan_id = request.data.get("ticket"), request.data.get("scan_id")
         if not (
-            isinstance(ticket, str) and ticket and isinstance(scan_id, str) and scan_id and len(scan_id) <= 64
+            isinstance(ticket, str)
+            and 0 < len(ticket) <= 64
+            and isinstance(scan_id, str)
+            and 0 < len(scan_id) <= 64
         ):
-            return Response({"error": "ticket and scan_id are required"}, status=400)
-        result = scan_ticket(ticket, scan_id)
+            return Response({"error": "ticket and scan_id are required, 64 characters at most"}, status=400)
+        result = scan_ticket(ticket, scan_id, caller_organizer(request))
         return Response(
             {"outcome": result.outcome, "checked_in_at": result.checked_in_at}, status=result.http_status
         )
@@ -75,6 +85,9 @@ class EventManifestView(Audited, APIView):
             after = max(0, int(request.query_params.get("after", 0)))
         except ValueError:
             return Response({"error": "after must be a number"}, status=400)
+        if not owns_event(caller_organizer(request), event):
+            # The same answer as an event nobody has heard of: a gate cannot probe other organizers' events.
+            return Response({"error": "Unknown event"}, status=404)
         return Response(event_manifest(event, after, MANIFEST_PAGE))
 
 
@@ -110,6 +123,7 @@ class OfflineScanUploadView(APIView):
         if len(scans) > OFFLINE_BATCH_LIMIT:
             return Response({"error": f"At most {OFFLINE_BATCH_LIMIT} scans per upload"}, status=413)
         latest = timezone.now() + OFFLINE_CLOCK_SKEW
+        organizer = caller_organizer(request)
         results = []
         for item in scans:
             fields = _offline_scan_fields(item, latest)
@@ -120,7 +134,9 @@ class OfflineScanUploadView(APIView):
                 )
                 continue
             ticket, scan_id, when = fields
-            results.append({"scan_id": scan_id, "result": apply_offline_scan(ticket, scan_id, device, when)})
+            results.append(
+                {"scan_id": scan_id, "result": apply_offline_scan(ticket, scan_id, device, when, organizer)}
+            )
         return Response({"results": results})
 
 

@@ -16,6 +16,7 @@ from .models import (
     ConnectorMetric,
     ConnectorState,
     DeadLetter,
+    EventOwner,
     OutboundCheckin,
     ScanConflict,
     SyncCursor,
@@ -47,11 +48,19 @@ def parse_ticket(item: object) -> tuple[str, str, str | None, str, int] | None:
         item.get("version"),
         item.get("status"),
     )
-    if not (isinstance(ticket_id, str) and ticket_id and isinstance(event, str) and event):
+    # Lengths match the columns. A longer value would fail the whole page's transaction and stall the feed.
+    if not (
+        isinstance(ticket_id, str)
+        and 0 < len(ticket_id) <= 64
+        and isinstance(event, str)
+        and 0 < len(event) <= 64
+    ):
         return None
     if not isinstance(version, int) or isinstance(version, bool) or version < 1 or status not in STATUSES:
         return None
     email = item.get("email")
+    if isinstance(email, str) and len(email) > 254:
+        return None
     return ticket_id, event, email if isinstance(email, str) and email else None, status, version
 
 
@@ -120,6 +129,11 @@ def sync_tickets(client: TicketingClient, max_pages: int = 200, limit: int = 500
             else:
                 parsed.append(row)
         next_cursor = str(page.get("next_cursor") or cursor_value)
+        if page.get("has_more") and next_cursor == cursor_value:
+            # Asking for the same page again would loop. A person has to look at the feed.
+            dead_letter("ticket_page", {"cursor": cursor_value}, "More pages announced, but no new cursor")
+            result.stopped_by = "no new cursor"
+            break
         head = page.get("feed_head")
         with transaction.atomic():
             # Serialises page commits. A second worker that fetched the same page sees the cursor moved and backs off.
@@ -137,7 +151,9 @@ def sync_tickets(client: TicketingClient, max_pages: int = 200, limit: int = 500
                 items_stale=F("items_stale") + len(parsed) - applied,
                 last_success_at=timezone.now(),
                 caught_up=not page.get("has_more"),
-                feed_head=head if isinstance(head, int) else current.feed_head,
+                feed_head=head
+                if isinstance(head, int) and not isinstance(head, bool) and head >= 0
+                else current.feed_head,
             )
         result.pages += 1
         result.applied += applied
@@ -171,12 +187,28 @@ class ScanResult:
     checked_in_at: dt.datetime | None = None
 
 
-def scan_ticket(ticket_external_id: str, scan_id: str) -> ScanResult:
+def visible_tickets(organizer: str | None):
+    """Tickets a caller may act on. An organizer's gate sees its own events only; another organizer's ticket
+    answers exactly like one that does not exist, so a gate cannot even learn that it is there."""
+    if organizer is None:
+        return Ticket.objects.all()
+    owned = EventOwner.objects.filter(organizer=organizer).values("event_external_id")
+    return Ticket.objects.filter(event_id_external__in=owned)
+
+
+def owns_event(organizer: str | None, event_external_id: str) -> bool:
+    if organizer is None:
+        return True
+    return EventOwner.objects.filter(organizer=organizer, event_external_id=event_external_id).exists()
+
+
+def scan_ticket(ticket_external_id: str, scan_id: str, organizer: str | None = None) -> ScanResult:
     """Admit a ticket once. A gate retrying the same scan after a lost reply gets the same answer."""
     now = timezone.now()
+    tickets = visible_tickets(organizer)
     try:
         with transaction.atomic():
-            admitted = Ticket.objects.filter(
+            admitted = tickets.filter(
                 external_id=ticket_external_id, checked_in_at__isnull=True, status="valid"
             ).update(checked_in_at=now, checked_in_scan_id=scan_id)
             if admitted:
@@ -185,7 +217,7 @@ def scan_ticket(ticket_external_id: str, scan_id: str) -> ScanResult:
     except IntegrityError:
         # The same key with different content is a client bug. It must not admit anyone or look like a success.
         return ScanResult("scan_id_reused", 422)
-    ticket = Ticket.objects.filter(external_id=ticket_external_id).first()
+    ticket = tickets.filter(external_id=ticket_external_id).first()
     if ticket is None:
         return ScanResult("unknown_ticket", 404)
     if ticket.checked_in_scan_id == scan_id:
@@ -213,15 +245,18 @@ def event_manifest(event_external_id: str, after: int, limit: int) -> dict:
     }
 
 
-def apply_offline_scan(ticket_external_id: str, scan_id: str, device: str, scanned_at: dt.datetime) -> str:
+def apply_offline_scan(
+    ticket_external_id: str, scan_id: str, device: str, scanned_at: dt.datetime, organizer: str | None = None
+) -> str:
     """Accept what a gate already decided while it had no network. The person has already walked in.
 
     The first upload for a ticket counts as the check-in. A later upload from a different scan cannot be undone at
     the gate, so it is recorded as a conflict for a person to review.
     """
+    tickets = visible_tickets(organizer)
     try:
         with transaction.atomic():
-            admitted = Ticket.objects.filter(
+            admitted = tickets.filter(
                 external_id=ticket_external_id, checked_in_at__isnull=True, status="valid"
             ).update(checked_in_at=scanned_at, checked_in_scan_id=scan_id)
             if admitted:
@@ -229,7 +264,7 @@ def apply_offline_scan(ticket_external_id: str, scan_id: str, device: str, scann
                 return "accepted"
     except IntegrityError:
         return "rejected"  # This scan id was already used for a different ticket.
-    ticket = Ticket.objects.filter(external_id=ticket_external_id).first()
+    ticket = tickets.filter(external_id=ticket_external_id).first()
     if ticket is None:
         ScanConflict.objects.get_or_create(
             scan_id=scan_id,
@@ -238,6 +273,7 @@ def apply_offline_scan(ticket_external_id: str, scan_id: str, device: str, scann
                 "device": device,
                 "scanned_at": scanned_at,
                 "reason": "unknown_ticket",
+                "organizer": organizer,
             },
         )
         return "conflict"
@@ -253,6 +289,7 @@ def apply_offline_scan(ticket_external_id: str, scan_id: str, device: str, scann
             "scanned_at": scanned_at,
             "reason": reason,
             "first_scan_id": ticket.checked_in_scan_id or "",
+            "organizer": organizer,
         },
     )
     return "conflict"
@@ -359,28 +396,42 @@ def save_stats(stats: CallStats) -> None:
         metric.save()
 
 
-def _load_breaker() -> CircuitBreaker:
+def _breaker_fields(source) -> tuple:
+    return (source.state, source.consecutive_failures, source.opened_at, source.times_opened)
+
+
+def _load_breaker() -> tuple[CircuitBreaker, tuple]:
     state, _ = ConnectorState.objects.get_or_create(name="ticketing")
     breaker = CircuitBreaker()
     breaker.state = state.state
     breaker.consecutive_failures = state.consecutive_failures
     breaker.opened_at = state.opened_at
     breaker.times_opened = state.times_opened
-    return breaker
+    return breaker, _breaker_fields(state)
 
 
-def _save_breaker(breaker: CircuitBreaker) -> None:
-    ConnectorState.objects.filter(name="ticketing").update(
-        state=breaker.state,
-        consecutive_failures=breaker.consecutive_failures,
-        opened_at=breaker.opened_at,
-        times_opened=breaker.times_opened,
-    )
+def _save_breaker(breaker: CircuitBreaker, loaded: tuple) -> None:
+    """Publish what this task learned without erasing what another task learned meanwhile.
+
+    Sync and flush run side by side. If the stored state moved since this task read it, the other task's view
+    stands, except that fresh failures here may still open the breaker: an outage is never hidden by a task
+    that started before it.
+    """
+    with transaction.atomic():
+        current = ConnectorState.objects.select_for_update().get(name="ticketing")
+        moved = _breaker_fields(current) != loaded
+        if moved and not (breaker.state == "open" and current.state != "open"):
+            return
+        current.state = breaker.state
+        current.consecutive_failures = breaker.consecutive_failures
+        current.opened_at = breaker.opened_at
+        current.times_opened = max(breaker.times_opened, current.times_opened)
+        current.save()
 
 
 def run_with_client(work, policy: RetryPolicy | None = None, timeout: httpx.Timeout | None = None):
     """Build a client from shared state, run the work, then publish breaker state and metrics."""
-    breaker = _load_breaker()
+    breaker, loaded = _load_breaker()
     client = TicketingClient(
         settings.TICKETING_BASE_URL,
         breaker=breaker,
@@ -392,5 +443,5 @@ def run_with_client(work, policy: RetryPolicy | None = None, timeout: httpx.Time
         return work(client)
     finally:
         client.close()
-        _save_breaker(breaker)
+        _save_breaker(breaker, loaded)
         save_stats(client.stats)

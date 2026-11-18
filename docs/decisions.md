@@ -98,7 +98,7 @@ Each entry records what was chosen, why, and what it costs.
 
 **Cost.** The same person at two organizers is two contacts, which is intended. Which organizer a caller may see is decided by its key, see 22.
 
-Organizers, card number detection, the erasure ledger and the per-organizer reconciliation together made one import slower. On the same laptop, back to back, 1,000,000 rows went at 4,140 rows per second before these changes and 3,467 after, about 16% slower. Several organizers at once more than make up for it (`docs/benchmarks-parallel.json`).
+Organizers, card number detection, the erasure ledger and the per-organizer reconciliation together made one import slower. On the same laptop, back to back, 1,000,000 rows went at 4,140 rows per second before these changes and 3,467 after, about 16% slower. The README table shows 3,698 for the same size: that is a later run on the same machine, and the spread between runs is of that order. Several organizers at once more than make up for it (`docs/benchmarks-parallel.json`).
 
 ## 17. Imports and ticketing have separate workers
 
@@ -136,9 +136,19 @@ An organizer's staff should see that organizer's contacts and nobody else's. One
 
 Considered: Django users with sessions. That is the right next step for people, and it changes how the console signs in. For devices at a gate and for scripts, a revocable key is the usual answer either way.
 
-## 23. Known limits of this version
+Gate keys belong to an organizer too. The ticket feed does not say whose event a ticket is for, so the platform records it (`event_owner assign`). A gate then sees and admits tickets of its own organizer's events only, and another organizer's ticket or event answers exactly as one that does not exist, so a gate cannot even probe for them. A ticket of an event nobody has assigned is reachable with a platform key alone.
 
-- The breaker's state is shared through the database and loaded per task. It is not updated across workers during a task.
+## 23. One writer per organizer at a time, for everything that writes contacts
+
+Imports already had one running writer per organizer. Rollback, reprocessing a quarantined row and erasure did not take part, so an erasure could land between a batch's check of the erasure ledger and its insert, and the person would be created again. Each of them now takes a PostgreSQL advisory lock on the organizer for its transaction, as does every import batch. Organizers never wait for each other. A second import for a busy organizer waits and retries for up to an hour, and says so on screen, instead of staying pending without a word.
+
+## 24. Known limits of this version
+
+- The breaker's state is shared through the database and loaded per task. Saving merges with what other tasks saved meanwhile, and new failures may open it, but a task does not see another task's change until it starts again.
+- The outbound rate limit is per task, so the real rate to the ticketing API is the limit times the tasks running at once. A shared limit would need Redis.
+- A half-open breaker lets every waiting call try, not one.
+- Replaying erasures after a restore needs the ledger copy that `export_ledger` writes outside the database. Taking that copy is a job to schedule, not built here.
+- A webhook or dead letter for an event with no recorded owner cannot be attributed to an organizer, so erasure leaves it; the hourly retention job removes webhook events after 30 days.
 - Static files are served by Django, which is enough for a demo. A production deployment should use a CDN or a dedicated static file server.
 - Kubernetes has run on one node only, in Docker. See `docs/k8s-proof.json`.
 - There are no personal user accounts. A key stands for a team or a device, so the access log names a key, not a person.

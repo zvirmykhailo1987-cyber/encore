@@ -166,11 +166,18 @@ def iter_mongoexport(path: Path, offset: int, row_number: int) -> Iterator[Recor
                 document = json.loads(line)
                 if not isinstance(document, dict):
                     raise ValueError("not an object")
-            except (ValueError, UnicodeDecodeError):
+            except (ValueError, UnicodeDecodeError, RecursionError):
                 text = clean_for_storage(line.decode("utf-8", "surrogateescape"))[:2000]
                 yield Record(row_number, None, position, "bad_json", {"line": text})
                 continue
-            yield Record(row_number, flatten_mongo(document), position)
+            try:
+                values = flatten_mongo(document)
+            except (ValueError, TypeError, OverflowError, RecursionError):
+                # One odd document, such as a date that is not a number, must not stop the whole run.
+                text = clean_for_storage(line.decode("utf-8", "surrogateescape"))[:2000]
+                yield Record(row_number, None, position, "bad_value", {"line": text})
+                continue
+            yield Record(row_number, values, position)
 
 
 def iter_jsonl(path: Path, offset: int, row_number: int) -> Iterator[Record]:
@@ -186,7 +193,7 @@ def iter_jsonl(path: Path, offset: int, row_number: int) -> Iterator[Record]:
                 data = json.loads(line)
                 if not isinstance(data, dict):
                     raise ValueError("not an object")
-            except (ValueError, UnicodeDecodeError):
+            except (ValueError, UnicodeDecodeError, RecursionError):
                 text = clean_for_storage(line.decode("utf-8", "surrogateescape"))[:2000]
                 yield Record(row_number, None, position, "bad_json", {"line": text})
                 continue

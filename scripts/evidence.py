@@ -9,6 +9,8 @@ import json
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -16,8 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "test-evidence.json"
 INSIDE = r"""
 set -u
-# Code only: the data folder and a local virtual environment would add gigabytes and nothing to test.
-mkdir /work && tar -C /src --exclude=./.venv --exclude=./data --exclude=./dist --exclude='./docs/*.webm' --exclude=./.git -cf - . | tar -C /work -xf - && cd /work
+# Exactly the files git knows about, so the result is what a fresh clone would get.
+mkdir /work && tar -C /work -xf /snapshot.tar && cd /work
 pip install -q --root-user-action=ignore -r requirements-dev.lock coverage pip-audit >/dev/null
 echo "== python"; python --version; uname -sr
 echo "== ruff"; ruff check . && ruff format --check . ; echo "ruff_exit=$?"
@@ -30,7 +32,32 @@ echo "== junit"; base64 -w0 /tmp/junit.xml; echo
 """
 
 
+def snapshot(folder: Path) -> Path:
+    """A tar of tracked files plus new files that are not ignored: the working tree a commit would contain."""
+    names = (
+        subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .split(chr(0))
+    )
+    path = folder / "snapshot.tar"
+    with tarfile.open(path, "w") as archive:
+        for name in filter(None, names):
+            if (ROOT / name).is_file():
+                archive.add(ROOT / name, arcname=name)
+    return path
+
+
 def main() -> None:
+    with tempfile.TemporaryDirectory() as folder:
+        run(snapshot(Path(folder)))
+
+
+def run(tar: Path) -> None:
     network = subprocess.run(
         [
             "docker",
@@ -51,7 +78,7 @@ def main() -> None:
             "--network",
             network,
             "-v",
-            f"{ROOT}:/src:ro",
+            f"{tar}:/snapshot.tar:ro",
             "-v",
             "encore-pipcache:/root/.cache/pip",
             "-e",

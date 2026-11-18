@@ -25,9 +25,15 @@ ORGANIZER = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 
 
 class RunSerializer(serializers.ModelSerializer):
+    # The file name only: where the server keeps its files is not the caller's business.
+    source_path = serializers.SerializerMethodField()
+
     class Meta:
         model = ImportRun
         exclude = ["lease_token"]
+
+    def get_source_path(self, run: ImportRun) -> str:
+        return Path(run.source_path).name
 
 
 class QuarantineSerializer(serializers.ModelSerializer):
@@ -62,8 +68,10 @@ def resolve_source(name: str, root: Path | None = None) -> Path | None:
         return None
 
 
-class RunListView(APIView):
+class RunListView(Audited, APIView):
     permission_classes = [ImportsAccess]
+    # Starting an import writes contacts. Listing runs shows no personal data.
+    audited_methods = frozenset({"POST"})
 
     def get(self, request: Request) -> Response:
         return Response(RunSerializer(visible_runs(request)[:50], many=True).data)
@@ -163,7 +171,7 @@ class SourceListView(APIView):
         return Response([{"name": p.name, "size": p.stat().st_size} for p in files])
 
 
-class RunActionView(APIView):
+class RunActionView(Audited, APIView):
     permission_classes = [ImportsAccess]
 
     def post(self, request: Request, pk: int, action: str) -> Response:
