@@ -1,0 +1,31 @@
+# Exactly one. A second scheduler would only repeat work, since every scheduled task is safe to run twice.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beat
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: beat}
+  template:
+    metadata:
+      labels: {app: beat}
+    spec:
+      containers:
+        - name: beat
+          image: encore:local
+          imagePullPolicy: IfNotPresent
+          command: [celery, -A, encore, beat, --loglevel=info, --schedule=/tmp/celerybeat-schedule]
+          envFrom:
+            - configMapRef: {name: encore-config}
+            - secretRef: {name: encore-secrets}
+          env:
+            - {name: DATABASE_URL, value: "postgres://encore:$(POSTGRES_PASSWORD)@db:5432/encore"}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 192Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000

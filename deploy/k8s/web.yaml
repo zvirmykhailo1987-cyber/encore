@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector: {app: web}
+  ports: [{port: 8000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      # preStop gives Kubernetes time to stop sending traffic. Gunicorn then finishes what it has.
+      terminationGracePeriodSeconds: 40
+      initContainers:
+        - name: wait-for-schema
+          image: encore:local
+          imagePullPolicy: IfNotPresent
+          command: [sh, -c, "until python manage.py migrate --check; do sleep 3; done"]
+          envFrom:
+            - configMapRef: {name: encore-config}
+            - secretRef: {name: encore-secrets}
+          env:
+            - {name: DATABASE_URL, value: "postgres://encore:$(POSTGRES_PASSWORD)@db:5432/encore"}
+      containers:
+        - name: web
+          image: encore:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - gunicorn
+            - encore.wsgi:application
+            - --config=deploy/gunicorn.conf.py
+            - --bind=0.0.0.0:8000
+            - --workers=2
+            - --threads=4
+            - --graceful-timeout=30
+          envFrom:
+            - configMapRef: {name: encore-config}
+            - secretRef: {name: encore-secrets}
+          env:
+            - {name: DATABASE_URL, value: "postgres://encore:$(POSTGRES_PASSWORD)@db:5432/encore"}
+          ports: [{containerPort: 8000}]
+          # Liveness does not touch the database: a database outage must not restart every web pod.
+          livenessProbe:
+            httpGet: {path: /livez, port: 8000}
+            periodSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            periodSeconds: 3
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec: {command: [sleep, "5"]}
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - {name: files, mountPath: /app/data}
+      volumes:
+        - name: files
+          persistentVolumeClaim: {claimName: import-files}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: web}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: web}
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}

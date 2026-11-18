@@ -1,0 +1,22 @@
+# kubectl apply -k deploy/k8s
+# Secrets are not here. Create them first: see docs/operations.md, section "Deploy".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: encore
+resources:
+  - namespace.yaml
+  - config.yaml
+  - postgres.yaml
+  - redis.yaml
+  - mock-ticketing.yaml
+  - data-volume.yaml
+  - migrate-job.yaml
+  - web.yaml
+  - worker.yaml
+  - beat.yaml
+  - edge.yaml
+  - network-policy.yaml
+configMapGenerator:
+  - name: edge-nginx
+    files:
+      - nginx.conf

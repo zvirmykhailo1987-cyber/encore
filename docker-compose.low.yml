@@ -25,8 +25,12 @@ services:
     command: gunicorn encore.wsgi:application --config deploy/gunicorn.conf.py --bind 0.0.0.0:8000 --workers 1 --threads 4
   worker:
     cpuset: "0,1"
-    mem_limit: 384m
-    command: celery -A encore worker --loglevel=info --concurrency=1
+    mem_limit: 256m
+    command: celery -A encore worker --loglevel=info --concurrency=1 --queues=imports
+  worker-ticketing:
+    cpuset: "0,1"
+    mem_limit: 128m
+    command: celery -A encore worker --loglevel=info --concurrency=1 --queues=celery
   beat:
     cpuset: "0,1"
     mem_limit: 96m

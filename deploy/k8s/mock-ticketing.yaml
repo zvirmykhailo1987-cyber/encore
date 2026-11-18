@@ -1,0 +1,30 @@
+# The stand-in ticketing API. Change TICKETING_BASE_URL and delete this file to connect a real one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-ticketing
+spec:
+  selector: {app: mock-ticketing}
+  ports: [{port: 8099}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-ticketing
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mock-ticketing}
+  template:
+    metadata:
+      labels: {app: mock-ticketing}
+    spec:
+      containers:
+        - name: api
+          image: encore:local
+          imagePullPolicy: IfNotPresent
+          command: [uvicorn, mock_api.app:app, --host, 0.0.0.0, --port, "8099"]
+          ports: [{containerPort: 8099}]
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {memory: 256Mi}

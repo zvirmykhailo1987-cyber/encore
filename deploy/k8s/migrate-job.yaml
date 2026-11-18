@@ -1,0 +1,27 @@
+# Schema changes run once per release, as their own step. Web and worker pods wait until they are done.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels: {app: migrate}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: encore:local
+          imagePullPolicy: IfNotPresent
+          # The database may still be starting. Waiting here is cheaper than burning the retry limit.
+          command: [sh, -c, "until python manage.py showmigrations >/dev/null 2>&1; do sleep 3; done; exec python manage.py migrate --noinput"]
+          envFrom:
+            - configMapRef: {name: encore-config}
+            - secretRef: {name: encore-secrets}
+          env:
+            - {name: DATABASE_URL, value: "postgres://encore:$(POSTGRES_PASSWORD)@db:5432/encore"}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {memory: 384Mi}

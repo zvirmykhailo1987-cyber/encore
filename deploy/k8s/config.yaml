@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: encore-config
+data:
+  ENCORE_DEBUG: "0"
+  # Probes and metrics are answered before the host check, so pod IPs do not belong here.
+  ENCORE_ALLOWED_HOSTS: "edge,edge.encore.svc.cluster.local"
+  CELERY_BROKER_URL: redis://redis:6379/0
+  REDIS_URL: redis://redis:6379/1
+  TICKETING_BASE_URL: http://mock-ticketing:8099
+  ENCORE_IMPORT_AUTO_RESUME: "1"

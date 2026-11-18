@@ -1,0 +1,9 @@
+# Where export files wait. ReadWriteOnce works on one node only. Production reads exports from object storage,
+# or uses a ReadWriteMany volume, because web and worker pods then land on different nodes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: import-files
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 2Gi}}

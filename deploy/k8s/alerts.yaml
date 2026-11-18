@@ -1,0 +1,82 @@
+# Prometheus alert rules. Check with: promtool check rules deploy/k8s/alerts.yaml
+# The runbook named in each alert is a section of docs/operations.md.
+groups:
+  - name: encore-imports
+    rules:
+      - alert: ImportWorkerSilent
+        expr: encore_import_heartbeat_age_seconds > 60
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: A running import has not sent a heartbeat for over a minute
+          runbook: import-stuck
+      - alert: ImportFailed
+        expr: encore_imports_failed > 0
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: An import stopped with an error and waits for a decision
+          runbook: import-failed
+      - alert: ReconciliationUnbalanced
+        expr: encore_imports_unbalanced > 0
+        labels: {severity: page}
+        annotations:
+          summary: A finished import does not match its source. Stop cutovers until it is explained
+          runbook: reconciliation-unbalanced
+      - alert: QuarantineBacklog
+        expr: encore_quarantine_open > 50000
+        for: 1h
+        labels: {severity: ticket}
+        annotations:
+          summary: Many rows wait in quarantine
+          runbook: quarantine-backlog
+  - name: encore-ticketing
+    rules:
+      - alert: TicketingBreakerOpen
+        expr: encore_breaker_open == 1
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: The ticketing API has been failing for five minutes
+          runbook: breaker-open
+      - alert: TicketSyncStalled
+        expr: encore_sync_seconds_since_success > 300
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: No ticket page has been applied for over five minutes
+          runbook: sync-stalled
+      - alert: TicketSyncBehind
+        expr: encore_sync_cursor_lag_items > 10000
+        for: 10m
+        labels: {severity: ticket}
+        annotations:
+          summary: Ticket sync is falling behind the feed
+          runbook: sync-stalled
+      - alert: CheckinDeliveryDelayed
+        expr: encore_outbox_oldest_pending_seconds > 600
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: A check-in has waited over ten minutes for delivery
+          runbook: outbox-delayed
+      - alert: CheckinsGaveUp
+        expr: encore_outbox_dead > 0
+        labels: {severity: ticket}
+        annotations:
+          summary: A check-in ran out of attempts and is in the dead letter list
+          runbook: dead-letters
+      - alert: DeadLettersOpen
+        expr: encore_dead_letters_open > 0
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: Messages wait for a person
+          runbook: dead-letters
+      - alert: ScanConflictsOpen
+        expr: encore_scan_conflicts_open > 0
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: Offline gates admitted the same ticket twice, or a ticket the server does not know
+          runbook: scan-conflicts

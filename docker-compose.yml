@@ -5,6 +5,7 @@ x-app: &app
     ENCORE_DEBUG: ${ENCORE_DEBUG:-0}
     ENCORE_ALLOWED_HOSTS: ${ENCORE_ALLOWED_HOSTS:-localhost,127.0.0.1}
     ENCORE_HTTPS: ${ENCORE_HTTPS:-0}
+    ENCORE_IMPORT_BATCH_PAUSE_MS: ${ENCORE_IMPORT_BATCH_PAUSE_MS:-0}
     ENCORE_SECRET_KEY: ${ENCORE_SECRET_KEY:-}
     ENCORE_OPERATOR_TOKEN: ${ENCORE_OPERATOR_TOKEN:-}
     TICKETING_WEBHOOK_SECRET: ${TICKETING_WEBHOOK_SECRET:-}
@@ -65,7 +66,16 @@ services:
 
   worker:
     <<: *app
-    command: celery -A encore worker --loglevel=info --concurrency=2
+    command: celery -A encore worker --loglevel=info --concurrency=2 --queues=imports
+    stop_grace_period: 5s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Ticket sync and check-in delivery, so a long import can never hold them up.
+  worker-ticketing:
+    <<: *app
+    command: celery -A encore worker --loglevel=info --concurrency=2 --queues=celery
     stop_grace_period: 5s
     depends_on:
       migrate:
