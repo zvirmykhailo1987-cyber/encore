@@ -78,7 +78,7 @@ The edge is nginx with a one second cache. The numbers fans see can be about a s
 | 1,000 | 755 | 0.012% | 1,160 ms | 1,865 ms | 2,321 ms |
 | 1,500 | 773 | 0.002% | 1,200 ms | 1,979 ms | 2,267 ms |
 
-Scans saturate at about 755 to 773 per second on this machine: above that they queue. Admitted tickets and outbox messages matched in every run. Scans cannot be cached, so this is the real write limit of this setup. The few failed scans were not investigated.
+Scans saturate at about 755 to 773 per second on this machine: above that they queue. Admitted tickets and outbox messages matched in every run. Scans cannot be cached, so this is the real write limit of this setup. The few failed scans came from keep-alive: Gunicorn closed idle connections after 2 s while nginx reused them for up to 60 s, and nginx does not retry a POST. That is fixed and covered by a test against a real Gunicorn ([incident review](docs/incident-gunicorn.md)); the throughput numbers above are from before the fix.
 
 **Django stopped in the middle of a spike, with 5,000 fans refreshing:** 0 failed requests, because the edge keeps serving the last known page. A page nobody has requested yet has no copy to serve, so it fails until Django returns. Gate scans need Django, so they would stop until it returns. That combination was not measured.
 

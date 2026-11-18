@@ -90,7 +90,7 @@ Each entry records what was chosen, why, and what it costs.
 
 **Why.** A test on a smaller machine found that Django stopped answering for 4 minutes after a flood had ended, using almost no CPU. Gunicorn 26 holds a worker thread for up to 5 seconds on a new connection that has sent nothing. With four threads, 64 idle connections delayed a real request by 80 seconds. Lowering the wait to 0.02 seconds brought that to 0.3 seconds, and recovery after a flood to 0 seconds.
 
-**Cost.** Gunicorn has no setting for this, so `deploy/gunicorn.conf.py` changes a module constant, and a test fails if the constant moves. A wait of 0 failed 49% of gate scans in a short measurement. The cause of that was not found, so 0.02 is a measured choice rather than an explained one. Gunicorn also closes a connection that stays silent for over 2 seconds, which is fine behind nginx, since nginx sends a request as soon as it connects.
+**Cost.** Gunicorn has no setting for this, so `deploy/gunicorn.conf.py` changes a module constant, and a test fails if the constant moves. A wait of 0 once failed 49% of gate scans. The cause, found later: Gunicorn 26 also uses that constant as the deadline for draining a request body before keep-alive, so at 0 it closed every connection after one request, and nginx does not retry a POST. The drain now has its own deadline, set in the same file, and the same file sets Gunicorn's keep-alive above nginx's upstream keep-alive, so the edge always closes an idle connection first. A test runs a real Gunicorn and fails on the old settings. Both patches touch Gunicorn internals, so the test also checks that the patched names still exist.
 
 ## 16. Every contact belongs to one organizer
 

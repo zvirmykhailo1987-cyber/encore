@@ -225,6 +225,12 @@ window.Encore = (function () {
 
   function fileName(path) { return String(path || "").split(/[\\/]/).pop(); }
 
+  // What the current key may do. Asked once per key, so screens can hide what would only fail.
+  let whoCache = null;
+  function who() {
+    if (!whoCache) whoCache = api("/whoami").catch((e) => { whoCache = null; throw e; });
+    return whoCache;
+  }
   function askToken() {
     const d = $("token");
     if (d && !d.open) d.showModal();
@@ -250,6 +256,8 @@ window.Encore = (function () {
         }
         $("token-input").value = "";
         label();
+        whoCache = null;
+        window.dispatchEvent(new Event("encore-key"));
       });
     }
   }
@@ -297,6 +305,6 @@ window.Encore = (function () {
     }
   }
 
-  return { $, h, s, icon, setText, setAttr, setHidden, setKids, setNum, num, isNum, bytes, duration, clock, niceMax, api, ApiError, poll, connection,
+  return { who, $, h, s, icon, setText, setAttr, setHidden, setKids, setNum, num, isNum, bytes, duration, clock, niceMax, api, ApiError, poll, connection,
     toast, confirmAction, showDetail, statusChip, dryChip, fileName, fitBoard, fatal, clearFatal, DASH };
 })();

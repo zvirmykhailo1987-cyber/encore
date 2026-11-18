@@ -19,10 +19,10 @@ set -u
 cp -r /src /work && cd /work
 pip install -q --root-user-action=ignore -r requirements-dev.lock coverage pip-audit >/dev/null
 echo "== python"; python --version; uname -sr
-echo "== ruff"; ruff check . ; echo "ruff_exit=$?"
-echo "== mypy"; mypy crm imports ticketing mock_api console encore 2>&1 | tail -1; echo "mypy_exit=${PIPESTATUS[0]}"
+echo "== ruff"; ruff check . && ruff format --check . ; echo "ruff_exit=$?"
+echo "== mypy"; mypy access crm imports ticketing mock_api console encore 2>&1 | tail -1; echo "mypy_exit=${PIPESTATUS[0]}"
 echo "== migrations"; python manage.py makemigrations --check --dry-run | tail -1; echo "migrations_exit=${PIPESTATUS[0]}"
-echo "== tests"; coverage run --source=crm,imports,ticketing,encore,console,mock_api --omit='*/migrations/*' -m pytest -q --no-header --junitxml=/tmp/junit.xml -p no:cacheprovider 2>&1 | grep -vE '^\{' | tail -4; echo "tests_exit=${PIPESTATUS[0]}"
+echo "== tests"; coverage run --source=access,crm,imports,ticketing,encore,console,mock_api --omit='*/migrations/*' -m pytest -q --no-header --junitxml=/tmp/junit.xml -p no:cacheprovider 2>&1 | grep -vE '^\{' | tail -4; echo "tests_exit=${PIPESTATUS[0]}"
 echo "== coverage"; coverage report --sort=miss | tail -40
 echo "== audit"; pip-audit -r requirements.txt --no-deps --disable-pip --progress-spinner off 2>&1 | tail -12; echo "audit_exit=${PIPESTATUS[0]}"
 echo "== junit"; base64 -w0 /tmp/junit.xml; echo

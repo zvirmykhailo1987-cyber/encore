@@ -70,6 +70,11 @@ components:
         scan_id: {type: string, maxLength: 64, description: Created by the device. Makes an upload safe to repeat}
         scanned_at: {type: string, format: date-time, description: With a time zone. At most 5 minutes in the future}
 paths:
+  /whoami:
+    get:
+      summary: The scope and organizer of the calling key, so a client shows only what will work
+      x-scope: "any key"
+      responses: {"200": {description: "scope: platform, organizer or gate; organizer for organizer keys"}}
   /imports/sources:
     get:
       summary: Files that can be imported

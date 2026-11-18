@@ -12,7 +12,7 @@
         <p class="hint" id="source-hint"></p>
         <label class="field-l" for="organizer">Organizer</label>
         <input id="organizer" class="inp" value="demo" maxlength="40" autocomplete="off" spellcheck="false">
-        <p class="hint">Contacts of one organizer never merge with those of another.</p>
+        <p class="hint" id="organizer-hint">Contacts of one organizer never merge with those of another.</p>
         <label class="check"><input type="checkbox" id="dry"><span><b>Dry run</b> Classifies every row and writes nothing</span></label>
         <p class="err" id="start-err" role="alert" hidden></p>
         <div class="acts"><button class="btn p" id="start-btn" type="submit" disabled>Start import</button></div>
@@ -20,11 +20,14 @@
     </section>
     <section class="n" aria-labelledby="link-h">
       <div class="nh"><svg class="iso" aria-hidden="true"><use href="#iso-tower"/></svg><h2 id="link-h">Ticketing connector</h2></div>
-      <div class="kv"><span>Circuit breaker</span><b id="c-breaker">—</b></div>
-      <div class="kv"><span>Cursor lag, items</span><b id="c-lag">—</b></div>
-      <div class="kv"><span>Outbox pending</span><b id="c-outbox">—</b></div>
-      <div class="kv"><span>Dead letters open</span><b id="c-dl">—</b></div>
-      <a class="lnk" href="{% url 'console-integration' %}">Integration health<svg class="ico" aria-hidden="true"><use href="#i-dali"/></svg></a>
+      <div id="link-body">
+        <div class="kv"><span>Circuit breaker</span><b id="c-breaker">—</b></div>
+        <div class="kv"><span>Cursor lag, items</span><b id="c-lag">—</b></div>
+        <div class="kv"><span>Outbox pending</span><b id="c-outbox">—</b></div>
+        <div class="kv"><span>Dead letters open</span><b id="c-dl">—</b></div>
+        <a class="lnk" href="{% url 'console-integration' %}">Integration health<svg class="ico" aria-hidden="true"><use href="#i-dali"/></svg></a>
+      </div>
+      <p class="hint" id="link-scope" hidden>The connector is shared by every organizer, so its state needs a platform key.</p>
     </section>
   </div>
   <section class="n ov-runs" aria-labelledby="runs-h" aria-busy="true" id="runs-node">

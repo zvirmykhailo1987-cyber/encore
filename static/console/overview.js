@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const { setAttr, setHidden, $, h, setText, num, bytes, clock, api, poll, statusChip, dryChip, fileName, setKids, DASH } = Encore;
+  const { who, setAttr, setHidden, $, h, setText, num, bytes, clock, api, poll, statusChip, dryChip, fileName, setKids, DASH } = Encore;
   let everLoaded = false;
 
   function progress(run) {
@@ -76,7 +76,20 @@
     existing.forEach((tr) => tr.remove());
     refreshConnector();
   }
+  // An organizer key imports for its own organizer and cannot see the shared connector, so the screen says so.
+  async function applyScope() {
+    let w;
+    try { w = await who(); } catch (e) { return; }
+    const org = $("organizer");
+    const scoped = w.scope === "organizer";
+    org.readOnly = scoped;
+    if (scoped) org.value = w.organizer;
+    setText("organizer-hint", scoped ? "This key imports for " + w.organizer + " only." : "Contacts of one organizer never merge with those of another.");
+    setHidden("link-body", w.scope !== "platform");
+    setHidden("link-scope", w.scope === "platform");
+  }
   async function refreshConnector() {
+    if (!$("link-scope").hidden) return;
     try {
       const c = await api("/connector/health");
       setText("c-breaker", { closed: "Closed", open: "Open", half_open: "Half-open" }[c.breaker] || c.breaker);
@@ -109,7 +122,11 @@
       sel.disabled = files.length === 0;
       $("start-btn").disabled = files.length === 0;
       if (files.length) flowHint();
-      else setText("source-hint", "Put a .csv or .jsonl file in the data folder, then reload this page.");
+      else {
+        let folder = "the data folder";
+        try { const w = await who(); if (w.scope === "organizer") folder = "data/" + w.organizer + "/"; } catch (e) { /* The generic wording still holds. */ }
+        setText("source-hint", "Put a .csv or .jsonl file in " + folder + ", then reload this page.");
+      }
     } catch (e) {
       setKids(sel, ["err"], () => h("option", { value: "" }, "Files did not load"));
       sel.disabled = true;
@@ -118,6 +135,8 @@
     }
   }
   document.addEventListener("DOMContentLoaded", () => {
+    applyScope();
+    addEventListener("encore-key", () => { applyScope(); loadSources(); });
     loadSources();
     const poller = poll(refresh, 2000);
     $("runs-retry").addEventListener("click", () => poller.now());

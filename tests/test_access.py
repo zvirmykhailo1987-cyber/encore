@@ -167,6 +167,15 @@ def test_an_organizer_key_cannot_scan_or_run_the_connector(keys):
     assert festival.get("/api/v1/connector/dead-letters").status_code == 403
 
 
+def test_whoami_tells_a_client_what_its_key_can_do(keys):
+    assert client(keys["festival"]).get("/api/v1/whoami").json() == {
+        "scope": "organizer",
+        "organizer": "festival-a",
+    }
+    assert client(keys["gate"]).get("/api/v1/whoami").json() == {"scope": "gate", "organizer": None}
+    assert client().get("/api/v1/whoami").status_code == 401
+
+
 def test_availability_stays_public_and_is_never_rate_limited(keys, monkeypatch):
     from django.core.cache import cache
     from rest_framework.throttling import SimpleRateThrottle
@@ -276,6 +285,7 @@ def test_openapi_documents_every_route_with_the_scope_the_code_enforces():
         (Path(__file__).resolve().parent.parent / "docs" / "openapi.yaml").read_text("utf-8")
     )
     names = {
+        permissions.Authenticated: "any key",
         permissions.PlatformOnly: "platform",
         permissions.ImportsAccess: "organizer or platform",
         permissions.GateAccess: "gate or platform",
