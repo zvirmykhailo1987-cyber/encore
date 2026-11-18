@@ -17,7 +17,7 @@ rm -f "$ENCORE_BENCH_OUT"
 STOP=$(mktemp -u)
 
 health() {
-  for service in db redis web worker edge; do
+  for service in db redis web worker worker-ticketing edge; do
     id=$(docker compose ps -aq "$service")
     echo "$service oom_killed=$(docker inspect -f '{{.State.OOMKilled}}' "$id") status=$(docker inspect -f '{{.State.Status}}' "$id") peak_mb=$(( $(docker exec "$id" cat /sys/fs/cgroup/memory.peak) / 1048576 ))"
   done

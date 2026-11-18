@@ -159,11 +159,20 @@ def connector_part() -> None:
 
     step("Full outage: the breaker opens, then recovers")
     httpx.post(f"{MOCK}/_faults", json={"outage": True}).raise_for_status()
-    time.sleep(25)
-    print("breaker during outage:", httpx.get(f"{API}/connector/health", timeout=10).json()["breaker"])
+    # The sync runs every 10 seconds and retries for up to 30 before it counts as failed, so allow two minutes.
+    print("breaker during outage:", wait_breaker("open", 120))
     httpx.post(f"{MOCK}/_faults", json={}).raise_for_status()
-    time.sleep(35)
-    print("breaker after recovery:", httpx.get(f"{API}/connector/health", timeout=10).json()["breaker"])
+    print("breaker after recovery:", wait_breaker("closed", 120))
+
+
+def wait_breaker(wanted: str, seconds: int) -> str:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        state = httpx.get(f"{API}/connector/health", timeout=10).json()["breaker"]
+        if state == wanted:
+            return state
+        time.sleep(2)
+    raise SystemExit(f"The breaker did not become {wanted} within {seconds} seconds")
 
 
 def main() -> None:

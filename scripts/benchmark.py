@@ -107,6 +107,14 @@ def bench_import(rows: int) -> None:
             f"data/{name}",
         )
     sql("truncate crm_contact, crm_contactalias, imports_importrun cascade")
+    # Right after `compose up` the edge can answer before Django does, with a 502.
+    for _ in range(60):
+        try:
+            if httpx.get(f"{API}/imports/runs", timeout=10).status_code == 200:
+                break
+        except httpx.HTTPError:
+            pass
+        time.sleep(2)
     watch = MemoryWatch()
     watch.start()
     reply = httpx.post(f"{API}/imports/runs", json={"source": name}, headers=HEADERS, timeout=30)

@@ -13,7 +13,7 @@ ENCORE_OPERATOR_TOKEN="$("$PYTHON" -c 'import secrets; print(secrets.token_urlsa
 TICKETING_WEBHOOK_SECRET="$("$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export ENCORE_DEBUG=0 ENCORE_SECRET_KEY ENCORE_OPERATOR_TOKEN TICKETING_WEBHOOK_SECRET PYTHONIOENCODING=utf-8
 
-docker compose up -d --build --wait db redis web edge worker beat mock-ticketing
+docker compose up -d --build --wait db redis web edge worker worker-ticketing beat mock-ticketing
 
 if [ "${1:-}" = "--stack-only" ]; then
   shift
