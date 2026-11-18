@@ -10,6 +10,9 @@
         <label class="field-l" for="source">Source file</label>
         <select id="source" class="inp" disabled><option>Loading files</option></select>
         <p class="hint" id="source-hint"></p>
+        <label class="field-l" for="organizer">Organizer</label>
+        <input id="organizer" class="inp" value="demo" maxlength="40" autocomplete="off" spellcheck="false">
+        <p class="hint">Contacts of one organizer never merge with those of another.</p>
         <label class="check"><input type="checkbox" id="dry"><span><b>Dry run</b> Classifies every row and writes nothing</span></label>
         <p class="err" id="start-err" role="alert" hidden></p>
         <div class="acts"><button class="btn p" id="start-btn" type="submit" disabled>Start import</button></div>

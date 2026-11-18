@@ -108,7 +108,7 @@ window.Encore = (function () {
     const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs || TIMEOUT_MS);
     const headers = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    if (opts.method && opts.method !== "GET" && token()) headers.Authorization = "Bearer " + token();
+    if (token()) headers.Authorization = "Bearer " + token();
     let response;
     try {
       response = await fetch(API + path, {
@@ -126,7 +126,7 @@ window.Encore = (function () {
     let body = null;
     try { body = await response.json(); } catch (e) { /* An error page is not JSON. The status still says enough. */ }
     if (!response.ok) {
-      if ((response.status === 401 || response.status === 403) && opts.method && opts.method !== "GET") askToken();
+      if (response.status === 401 || response.status === 403) askToken();
       const text = body && (body.error || body.detail);
       throw new ApiError(response.status, text ? String(text) : "The server answered with status " + response.status + ".");
     }

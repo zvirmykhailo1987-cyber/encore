@@ -130,7 +130,7 @@
       btn.disabled = true;
       btn.setAttribute("aria-busy", "true");
       try {
-        const run = await api("/imports/runs", { method: "POST", body: { source: $("source").value, dry_run: $("dry").checked } });
+        const run = await api("/imports/runs", { method: "POST", body: { source: $("source").value, organizer: $("organizer").value.trim(), dry_run: $("dry").checked } });
         location.href = "/runs/" + run.id;
       } catch (ex) {
         setText(err, ex.message);

@@ -251,6 +251,7 @@
     setAttr("f-file", "title", run.source_path);
     setText("f-size", size ? bytes(size) : DASH);
     setText("f-fmt", run.source_format);
+    setText("f-org", run.organizer);
     setText("f-sys", run.source_system);
     setText("f-sha", run.source_sha256 ? run.source_sha256.slice(0, 8) + "…" + run.source_sha256.slice(-4) : DASH);
     setAttr("f-sha", "title", run.source_sha256 || "");
