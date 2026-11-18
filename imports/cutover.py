@@ -14,7 +14,9 @@ def cutover_report(organizer: str, max_open_share: float = DEFAULT_MAX_OPEN_QUAR
         status__in=[ImportRun.Status.RUNNING, ImportRun.Status.INTERRUPTED, ImportRun.Status.PAUSED]
     ).count()
     rows_read = latest.rows_read if latest else 0
-    open_rows = QuarantineRow.objects.filter(run=latest, status=QuarantineRow.Status.OPEN).count() if latest else 0
+    open_rows = (
+        QuarantineRow.objects.filter(run=latest, status=QuarantineRow.Status.OPEN).count() if latest else 0
+    )
     share = open_rows / rows_read if rows_read else None
     report = latest.reconciliation if latest and latest.reconciliation else {}
     dry_run_first = (

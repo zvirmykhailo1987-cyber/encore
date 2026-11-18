@@ -7,6 +7,8 @@ from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
+from access.auth import keys_configured
+
 DASH = "—"
 REFRESH_PREFIX = "Refresh spike, "
 DOORS_PREFIX = "Doors open, "
@@ -21,7 +23,7 @@ def _context(nav: str, **extra: object) -> dict:
     return {
         "nav": nav,
         # Only whether a token is needed. The token itself never reaches a template.
-        "needs_token": bool(settings.ENCORE_OPERATOR_TOKEN),
+        "needs_token": keys_configured(),
         "stale_seconds": settings.ENCORE_IMPORT_STALE_SECONDS,
         **extra,
     }

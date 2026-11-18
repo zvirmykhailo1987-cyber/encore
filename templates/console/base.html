@@ -21,7 +21,7 @@
     <a href="{% url 'console-benchmarks' %}" {% if nav == 'benchmarks' %}aria-current="page"{% endif %}><svg class="ico" aria-hidden="true"><use href="#i-kpi"/></svg>Load results</a>
   </nav>
   <div class="sp"></div>
-  {% if needs_token %}<button data-has-js class="btn ghost" id="token-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-zamok"/></svg><span id="token-state">Operator token</span></button>{% endif %}
+  {% if needs_token %}<button data-has-js class="btn ghost" id="token-open" type="button"><svg class="ico" aria-hidden="true"><use href="#i-zamok"/></svg><span id="token-state">API key</span></button>{% endif %}
   <button data-has-js class="ib" id="theme-toggle" type="button" aria-label="Switch between light and dark theme"><svg class="ico" aria-hidden="true"><use href="#i-tema"/></svg></button>
 </header>
 <div class="conn" id="conn" role="alert" hidden></div>
@@ -46,8 +46,8 @@
 </dialog>
 {% if needs_token %}<dialog id="token" class="dlg" aria-labelledby="token-title">
   <form method="dialog" id="token-form">
-    <h2 id="token-title">Operator token</h2>
-    <p>Writes need the operator token. It stays in this browser tab and is sent only as an Authorization header.</p>
+    <h2 id="token-title">API key</h2>
+    <p>The console needs a platform or organizer key. It stays in this browser tab and is sent only as an Authorization header.</p>
     <label class="field-l" for="token-input">Token</label>
     <input id="token-input" class="inp" type="password" autocomplete="off">
     <div class="acts"><button class="btn" type="button" id="token-cancel">Cancel</button><button class="btn p" value="yes">Use token</button></div>

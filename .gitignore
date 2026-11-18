@@ -17,3 +17,4 @@ scripts/pack_uk/
 scripts/build_pack_uk.py
 docs/uk/
 docs/shots-uk/
+.coverage

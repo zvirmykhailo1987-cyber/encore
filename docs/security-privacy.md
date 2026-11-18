@@ -15,9 +15,9 @@
 
 | Data | Where | Why | Protection |
 |---|---|---|---|
-| Name, email, phone, city | `crm_contact` | The CRM's purpose | Writes and personal-data reads need the operator token |
+| Name, email, phone, city | `crm_contact` | The CRM's purpose | Only through imports, by that organizer's key or a platform key |
 | Consent yes or no, when, wording | `crm_contact` | [Proof must show when and how](https://www.edpb.europa.eu/system/files/documents/files/file1/edpb_guidelines_202005_consent_en.pdf) | As above |
-| Broken rows, in raw form | `imports_quarantinerow` | A person must fix them | Token to read. Cleared on erasure |
+| Broken rows, in raw form | `imports_quarantinerow` | A person must fix them | Organizer or platform key. Every read is logged. Cleared on erasure |
 | Earlier values | `imports_contactchange` | Rollback | Removed with the contact. **Needs deletion once rollback is over: not built** |
 | Holder email | `ticketing_ticket` | Comes from the ticket feed | Not in the gate manifest |
 | Hash of an erased email | `crm_erasedsubject` | Keeps them erased | Pseudonymous, so still personal data. Needs a retention decision |
@@ -61,10 +61,14 @@ Encore stores no payment data, and neither should a CRM. Legacy notes fields can
 | Threat | Control | Test or evidence |
 |---|---|---|
 | Forged or replayed webhook | HMAC on raw bytes, 5 minute window | `test_webhook_signature_rules`, bug injection |
-| Writes without authority | Bearer token, constant-time compare. Refuses everything if no token is set | `test_scan_api_requires_the_operator_token_when_one_is_set` |
+| Calls without authority | Closed by default: every API route needs a key unless it is named public. Keys are 256 random bits, stored as a digest, revocable | `test_every_api_route_refuses_a_caller_without_a_key`, `test_unknown_and_revoked_keys_are_refused` |
+| Guessing keys, or flooding | Per-key limit, and a per-address limit on calls without a valid key | `test_callers_without_a_key_are_slowed_down`, `test_each_key_has_its_own_limit` |
+| A key doing more than its job | Three scopes: platform, organizer, gate | `test_a_gate_key_scans_but_reads_no_imports_and_runs_no_operations`, `test_an_organizer_key_cannot_scan_or_run_the_connector` |
+| No record of who read personal data | Access log with key prefix, path and status; purged after a set period | `test_personal_data_reads_and_changes_are_logged_with_the_key` |
 | Another site calling a debug machine | Origin check | `test_debug_machine_refuses_writes_from_another_website` |
 | Reading any file through an import | Sources resolved inside one folder only | `test_import_api_cannot_read_outside_the_source_folder` |
-| One organizer reading another's data | **Partly.** Imports are isolated, but the console has one token, so every operator sees all organizers. **A real system needs users and per-organizer access** | Known gap |
+| One organizer reading another's data | Organizer keys see their own runs, rows and source folder only. Anything else answers 404 | `test_another_organizers_run_answers_404_everywhere`, `test_an_organizer_key_imports_for_itself_only` |
+| The documented API drifting from the code | A test compares every route's scope in `docs/openapi.yaml` with the code | `test_openapi_documents_every_route_with_the_scope_the_code_enforces` |
 | Cross-site scripting from imported data | The console inserts data only as text, and a strict CSP blocks inline scripts outside debug | `tests/test_console.py` |
 | Secrets in code | No usable defaults. The app refuses to start without them. Secret scanner on commit | `encore/settings.py` |
 | SQL injection | The ORM, or parameters. Table names in reconciliation come from an integer primary key | Lint rule S608 reviewed |
@@ -74,4 +78,4 @@ Encore stores no payment data, and neither should a CRM. Legacy notes fields can
 
 ## Not built
 
-User accounts, roles and per-organizer access. Audit log of who read what. Encryption of the export folder. Retention jobs. Rate limiting on the operator API. A penetration test. **Real personal data does not belong in this version.**
+Personal user accounts and single sign-on: a key stands for a team or a device. Encryption of the export folder. Retention of contact data. A penetration test. **Real personal data does not belong in this version.**

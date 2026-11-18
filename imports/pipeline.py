@@ -123,7 +123,9 @@ def copy_contacts(contacts: list[Contact]) -> None:
         with raw.copy(f"COPY crm_contact ({', '.join(columns)}) FROM STDIN") as copy:  # noqa: S608
             for contact in contacts:
                 values = [getattr(contact, name) for name in IMPORTABLE_FIELDS]
-                copy.write_row((contact.pk, contact.organizer, *values, "[]", contact.created_by_run_id, now, now))
+                copy.write_row(
+                    (contact.pk, contact.organizer, *values, "[]", contact.created_by_run_id, now, now)
+                )
 
 
 def copy_aliases(aliases: list[ContactAlias]) -> None:
@@ -134,7 +136,9 @@ def copy_aliases(aliases: list[ContactAlias]) -> None:
             "COPY crm_contactalias (organizer, src_uid, contact_id, row_hash, run_id) FROM STDIN"
         ) as copy:
             for alias in aliases:
-                copy.write_row((alias.organizer, alias.src_uid, alias.contact.pk, alias.row_hash, alias.run_id))
+                copy.write_row(
+                    (alias.organizer, alias.src_uid, alias.contact.pk, alias.row_hash, alias.run_id)
+                )
 
 
 def _apply_clean_rows(
@@ -281,7 +285,9 @@ def process_batch(run: ImportRun, records: Iterable[Record], overlay: DryRunOver
             clean.append((clean_row(record.row_number, record.values, run.source_system), record))
         except RowDefect as defect:
             if defect.reason == CARD_NUMBER_DEFECT:
-                result.quarantine.append(QuarantineRow(run=run, row_number=record.row_number, reason=defect.reason, raw={}))
+                result.quarantine.append(
+                    QuarantineRow(run=run, row_number=record.row_number, reason=defect.reason, raw={})
+                )
             else:
                 result.quarantine.append(_defect_row(run, record, defect.reason, defect.detail))
             result.counts["quarantined"] += 1
@@ -492,7 +498,10 @@ def rollback_run(run_id: int) -> ImportRun:
         if run.status != ImportRun.Status.COMPLETED or run.dry_run:
             raise RunBusy(f"Run {run_id} cannot be rolled back from status {run.status}")
         later = ImportRun.objects.filter(
-            organizer=run.organizer, pk__gt=run.pk, dry_run=False, status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING]
+            organizer=run.organizer,
+            pk__gt=run.pk,
+            dry_run=False,
+            status__in=[ImportRun.Status.COMPLETED, ImportRun.Status.RUNNING],
         )
         if later.exists():
             raise RunBusy("A later import was applied. Roll that one back first.")

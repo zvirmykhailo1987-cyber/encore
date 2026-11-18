@@ -76,7 +76,9 @@ def main() -> None:
     )
     parser.add_argument("--browser", action="store_true", help="Ask for compressed replies, as browsers do")
     parser.add_argument("--no-record", action="store_true")
-    parser.add_argument("--keep-failed", action="store_true", help="Record a run even if many requests failed")
+    parser.add_argument(
+        "--keep-failed", action="store_true", help="Record a run even if many requests failed"
+    )
     args = parser.parse_args()
 
     compose("stop", "beat")

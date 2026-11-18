@@ -96,7 +96,7 @@ Each entry records what was chosen, why, and what it costs.
 
 **Why.** A platform with many organizers holds their customers separately. The first version made email unique across the system, so two organizers with one customer would have merged. That joins two businesses' data, and a wrong merge is hard to undo. Uniqueness and every lookup now include the organizer, and one writer per organizer replaces one writer overall, so organizers can run side by side.
 
-**Cost.** The same person at two organizers is two contacts, which is intended. The console still has one operator token, so it does not separate organizers from each other.
+**Cost.** The same person at two organizers is two contacts, which is intended. Which organizer a caller may see is decided by its key, see 22.
 
 Organizers, card number detection, the erasure ledger and the per-organizer reconciliation together made one import slower. On the same laptop, back to back, 1,000,000 rows went at 4,140 rows per second before these changes and 3,467 after, about 16% slower. Several organizers at once more than make up for it (`docs/benchmarks-parallel.json`).
 
@@ -130,9 +130,15 @@ Organizers, card number detection, the erasure ledger and the per-organizer reco
 
 **Cost.** Two people can get in on one ticket. An organizer who cannot accept that needs an on-site server.
 
-## 22. Known limits of this version
+## 22. Keys with one scope each, closed by default
+
+An organizer's staff should see that organizer's contacts and nobody else's. One shared operator token could not say that. Each key now has a scope: platform, organizer or gate. The default permission in settings refuses any caller without a key, so a new view is closed until someone opens it on purpose. Another organizer's run answers 404 rather than 403, so a key cannot even learn which run numbers exist. A key is 256 random bits and only its SHA-256 digest is stored, which is enough for a value nobody can guess, while passwords would need a slow hash.
+
+Considered: Django users with sessions. That is the right next step for people, and it changes how the console signs in. For devices at a gate and for scripts, a revocable key is the usual answer either way.
+
+## 23. Known limits of this version
 
 - The breaker's state is shared through the database and loaded per task. It is not updated across workers during a task.
 - Static files are served by Django, which is enough for a demo. A production deployment should use a CDN or a dedicated static file server.
 - Kubernetes has run on one node only, in Docker. See `docs/k8s-proof.json`.
-- There is no user management. One operator token covers writes and reads of personal data, so every operator sees every organizer. Real personal data does not belong here.
+- There are no personal user accounts. A key stands for a team or a device, so the access log names a key, not a person.

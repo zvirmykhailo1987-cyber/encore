@@ -53,11 +53,31 @@ def render_metrics() -> str:
             "Rows waiting for a person",
         ),
         ("encore_outbox_pending", pending.count(), "Check-ins not delivered yet"),
-        ("encore_outbox_oldest_pending_seconds", _age(oldest_pending), "Age of the oldest undelivered check-in"),
-        ("encore_outbox_dead", OutboundCheckin.objects.filter(status="dead").count(), "Check-ins that gave up"),
-        ("encore_dead_letters_open", DeadLetter.objects.filter(resolved=False).count(), "Messages needing a person"),
-        ("encore_scan_conflicts_open", ScanConflict.objects.filter(reviewed=False).count(), "Offline scans to review"),
-        ("encore_breaker_open", 1 if state and state.state == "open" else 0, "1 while the circuit breaker is open"),
+        (
+            "encore_outbox_oldest_pending_seconds",
+            _age(oldest_pending),
+            "Age of the oldest undelivered check-in",
+        ),
+        (
+            "encore_outbox_dead",
+            OutboundCheckin.objects.filter(status="dead").count(),
+            "Check-ins that gave up",
+        ),
+        (
+            "encore_dead_letters_open",
+            DeadLetter.objects.filter(resolved=False).count(),
+            "Messages needing a person",
+        ),
+        (
+            "encore_scan_conflicts_open",
+            ScanConflict.objects.filter(reviewed=False).count(),
+            "Offline scans to review",
+        ),
+        (
+            "encore_breaker_open",
+            1 if state and state.state == "open" else 0,
+            "1 while the circuit breaker is open",
+        ),
         ("encore_sync_cursor_lag_items", lag, "Items behind the ticketing feed"),
         (
             "encore_sync_seconds_since_success",

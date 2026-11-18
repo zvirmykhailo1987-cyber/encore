@@ -16,6 +16,8 @@ if not SECRET_KEY:
 
 # Empty means write endpoints are open on a debug machine and closed everywhere else.
 ENCORE_OPERATOR_TOKEN = os.environ.get("ENCORE_OPERATOR_TOKEN", "")
+#: Records of personal-data access older than this are purged by `manage.py api_key purge-audit`.
+ENCORE_AUDIT_RETENTION_DAYS = int(os.environ.get("ENCORE_AUDIT_RETENTION_DAYS", "90"))
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ENCORE_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 
@@ -25,6 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     "rest_framework",
+    "access",
     "crm",
     "imports",
     "ticketing",
@@ -96,8 +99,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
-    "DEFAULT_PERMISSION_CLASSES": [],
+    # Closed by default: a view that names no permission needs a valid key.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "access.auth.ApiKeyAuthentication",
+        "access.auth.DebugMachineAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["access.permissions.Authenticated"],
+    "DEFAULT_THROTTLE_CLASSES": ["access.throttles.PerKeyThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "key": os.environ.get("ENCORE_RATE_PER_KEY", "1200/min"),
+        "no-key": os.environ.get("ENCORE_RATE_WITHOUT_KEY", "60/min"),
+    },
     "UNAUTHENTICATED_USER": None,
 }
 

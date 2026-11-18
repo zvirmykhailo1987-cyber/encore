@@ -300,7 +300,9 @@ def test_upload_keeps_the_scan_time_writes_one_outbox_message_and_can_be_repeate
     when = timezone.now() - dt.timedelta(hours=1)
     scan = offline_scan("T1", "gate-1-0001", when)
     assert upload("gate-1", scan).json()["results"] == [{"scan_id": "gate-1-0001", "result": "accepted"}]
-    assert upload("gate-1", scan).json()["results"] == [{"scan_id": "gate-1-0001", "result": "duplicate_upload"}]
+    assert upload("gate-1", scan).json()["results"] == [
+        {"scan_id": "gate-1-0001", "result": "duplicate_upload"}
+    ]
     ticket = Ticket.objects.get(external_id="T1")
     assert ticket.checked_in_at == when
     assert OutboundCheckin.objects.filter(idempotency_key="gate-1-0001").count() == 1
@@ -312,7 +314,11 @@ def test_two_offline_gates_admitting_one_ticket_become_a_conflict_to_review():
     results = upload("gate-2", offline_scan("T1", "gate-2-0001")).json()["results"]
     assert results == [{"scan_id": "gate-2-0001", "result": "conflict"}]
     conflict = ScanConflict.objects.get()
-    assert (conflict.device, conflict.reason, conflict.first_scan_id) == ("gate-2", "already_used", "gate-1-0001")
+    assert (conflict.device, conflict.reason, conflict.first_scan_id) == (
+        "gate-2",
+        "already_used",
+        "gate-1-0001",
+    )
     assert OutboundCheckin.objects.count() == 1
     upload("gate-2", offline_scan("T1", "gate-2-0001"))
     assert ScanConflict.objects.count() == 1
@@ -362,10 +368,15 @@ def test_retry_after_is_understood_as_an_http_date():
 # ---------------------------------------------------------------- reads of personal data
 
 
-def test_rows_with_personal_data_need_the_token_to_read():
+def test_rows_with_personal_data_need_the_token_to_read(tmp_path):
+    run = ImportRun.objects.create(source_path=str(tmp_path / "x.csv"), organizer="festival-a")
     client = Client()
-    for path in ("/api/v1/imports/runs/1/quarantine", "/api/v1/connector/dead-letters", "/api/v1/events/E/manifest"):
-        assert client.get(path).status_code == 403
+    for path in (
+        f"/api/v1/imports/runs/{run.pk}/quarantine",
+        "/api/v1/connector/dead-letters",
+        "/api/v1/events/E/manifest",
+    ):
+        assert client.get(path).status_code == 401
         assert operator().get(path).status_code == 200
 
 
@@ -383,7 +394,9 @@ def test_kubernetes_edge_config_differs_from_compose_only_in_addresses():
     compose = (root / "nginx.conf").read_text(encoding="utf-8").splitlines()
     cluster = (root / "k8s" / "nginx.conf").read_text(encoding="utf-8").splitlines()
     assert len(compose) == len(cluster)
-    different = [left.strip().split()[0] for left, right in zip(compose, cluster, strict=True) if left != right]
+    different = [
+        left.strip().split()[0] for left, right in zip(compose, cluster, strict=True) if left != right
+    ]
     assert different == ["resolver", "server"]
 
 
@@ -401,7 +414,9 @@ def test_metrics_report_what_the_alerts_watch():
     assert "encore_outbox_pending 1\n" in body
     alerts = (Path(__file__).parent.parent / "deploy" / "k8s" / "alerts.yaml").read_text(encoding="utf-8")
     exported = {line.split()[0] for line in body.splitlines() if line.startswith("encore_")}
-    named = {word for word in alerts.replace("(", " ").replace(")", " ").split() if word.startswith("encore_")}
+    named = {
+        word for word in alerts.replace("(", " ").replace(")", " ").split() if word.startswith("encore_")
+    }
     assert named, "the alert file names no metric"
     assert named <= exported, named - exported
 
@@ -447,7 +462,9 @@ def test_query_count_does_not_grow_with_batch_size(tmp_path):
     big = "".join(f"{i},q{i}@example.test,,,,,,\n" for i in range(100, 200))
     counts = []
     for name, body in (("small.csv", small), ("big.csv", big)):
-        run = ImportRun.objects.create(source_path=str(csv_file(tmp_path, body, name)), organizer="festival-a")
+        run = ImportRun.objects.create(
+            source_path=str(csv_file(tmp_path, body, name)), organizer="festival-a"
+        )
         records = [
             Record(index + 1, dict(zip(HEADER.strip().split(","), line.split(","), strict=True)), 0)
             for index, line in enumerate(body.splitlines())
@@ -521,4 +538,6 @@ def test_cutover_report_says_no_until_every_check_passes(tmp_path):
     run_for(bad, "club-b")
     report = cutover_report("club-b")
     assert report["go"] is False
-    assert [c["name"] for c in report["checks"] if not c["passed"]] == ["Open quarantine at most 0.5% of rows"]
+    assert [c["name"] for c in report["checks"] if not c["passed"]] == [
+        "Open quarantine at most 0.5% of rows"
+    ]

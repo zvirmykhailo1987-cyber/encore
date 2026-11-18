@@ -26,6 +26,12 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-dev.lock
       - run: ruff check .
-      - run: mypy crm imports ticketing mock_api console
+      - run: ruff format --check .
+      - run: mypy access crm imports ticketing mock_api console
       - run: python manage.py makemigrations --check --dry-run
-      - run: pytest
+      - name: Tests with a coverage floor
+        run: >-
+          pytest --cov=access --cov=crm --cov=imports --cov=ticketing --cov=console --cov=encore
+          --cov-report=term-missing:skip-covered --cov-fail-under=92
+      - name: Known vulnerabilities in pinned dependencies
+        run: pip-audit -r requirements.txt --strict

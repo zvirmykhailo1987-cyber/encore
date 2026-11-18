@@ -40,19 +40,19 @@ def test_pages_carry_no_sample_data_and_no_external_host(client):
 
 
 @pytest.mark.django_db
-def test_the_api_the_console_reads_answers_on_an_empty_database(client):
-    assert client.get("/api/v1/imports/runs").json() == []
-    health = client.get("/api/v1/connector/health").json()
+def test_the_api_the_console_reads_answers_on_an_empty_database(platform_client):
+    assert platform_client.get("/api/v1/imports/runs").json() == []
+    health = platform_client.get("/api/v1/connector/health").json()
     assert health["breaker"] == "closed"
     assert health["cursor_lag"] is None
     assert health["metrics"] == []
 
 
 @pytest.mark.django_db
-def test_a_run_with_zero_rows_has_no_progress_to_divide_by(client):
+def test_a_run_with_zero_rows_has_no_progress_to_divide_by(client, platform_client):
     run = ImportRun.objects.create(source_path="/app/data/empty.csv")
     assert client.get(f"/runs/{run.pk}").status_code == 200
-    payload = client.get(f"/api/v1/imports/runs/{run.pk}").json()
+    payload = platform_client.get(f"/api/v1/imports/runs/{run.pk}").json()
     assert payload["rows_read"] == 0
     assert payload["progress"] is None
     assert payload["speed_rows_per_second"] is None

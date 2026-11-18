@@ -96,7 +96,9 @@ def _mongo_value(value: object) -> str:
         if key == "$date":
             # Dates before 1970 or after 9999 stay wrapped as milliseconds, even in relaxed mode.
             if isinstance(inner, dict) and "$numberLong" in inner:
-                moment = dt.datetime(1970, 1, 1, tzinfo=dt.UTC) + dt.timedelta(milliseconds=int(inner["$numberLong"]))
+                moment = dt.datetime(1970, 1, 1, tzinfo=dt.UTC) + dt.timedelta(
+                    milliseconds=int(inner["$numberLong"])
+                )
                 return moment.date().isoformat()
             return _mongo_value(inner)[:10]
         if key.startswith("$"):

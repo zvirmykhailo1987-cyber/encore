@@ -91,7 +91,7 @@ Rules: `deploy/k8s/alerts.yaml`, checked with `promtool`. Each `runbook:` value 
 |---|---|
 | Bad release | `kubectl rollout undo deploy/web`. Schema changes stay expand-then-contract, so old code still runs |
 | Before an on-sale | Scale web and edge, pause imports or set `ENCORE_IMPORT_BATCH_PAUSE_MS`. Someone has to tell you it is happening: **needs an on-sale calendar** |
-| Rotate secrets | New Secret, rollout restart. The operator token changes at once. Webhook rotation drops in-flight messages for now |
+| Rotate secrets | New Secret, rollout restart. Revoke an API key with `manage.py api_key revoke <prefix>`; it stops working on the next call. The bootstrap token from the environment changes at once. Webhook rotation drops in-flight messages for now |
 | Restore from backup | Restore, then `manage.py replay_erasures --ledger <copy>`, then re-run reconciliation for recent runs. **Never rehearsed on a real backup** |
 | Erase a person | `manage.py erase_subject <organizer> <email>` |
 | Go or no-go | `manage.py cutover_report <organizer>` |

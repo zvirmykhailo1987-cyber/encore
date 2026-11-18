@@ -17,7 +17,9 @@ def erase_subject(organizer: str, email: str) -> dict:
     """Remove one person from one organizer. Other organizers are separate records and stay untouched."""
     address = email.strip().lower()
     with transaction.atomic():
-        ErasedSubject.objects.get_or_create(organizer=organizer, email_sha256=subject_hash(organizer, address))
+        ErasedSubject.objects.get_or_create(
+            organizer=organizer, email_sha256=subject_hash(organizer, address)
+        )
         contacts = list(Contact.objects.select_for_update().filter(organizer=organizer, email=address))
         aliases_removed = 0
         for contact in contacts:
@@ -47,7 +49,9 @@ def replay_erasures(ledger: list[dict] | None = None) -> dict:
     """
     if ledger:
         for entry in ledger:
-            ErasedSubject.objects.get_or_create(organizer=entry["organizer"], email_sha256=entry["email_sha256"])
+            ErasedSubject.objects.get_or_create(
+                organizer=entry["organizer"], email_sha256=entry["email_sha256"]
+            )
     removed = 0
     for organizer in ErasedSubject.objects.values_list("organizer", flat=True).distinct():
         hashes = set(ErasedSubject.objects.filter(organizer=organizer).values_list("email_sha256", flat=True))

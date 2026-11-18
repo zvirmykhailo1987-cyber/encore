@@ -49,7 +49,7 @@ def record_response(response) -> None:
     url = response.url
     if not url.startswith(URL) or response.status != 200:
         return
-    path = url[len(URL):]
+    path = url[len(URL) :]
     if response.request.resource_type == "document":
         REPLAY["pages"][path] = response.text()
     elif path.startswith("/api/v1/") and REPLAY["steps"] and response.request.method == "GET":
@@ -64,7 +64,11 @@ def record_response(response) -> None:
 
 def compose(*args: str) -> str:
     return subprocess.run(
-        ["docker", "compose", *args], cwd=ROOT, capture_output=True, text=True, check=True,
+        ["docker", "compose", *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
         # Restarted services must come back in the same demo settings the stack was started with.
         env={**os.environ, "ENCORE_DEBUG": os.environ.get("ENCORE_DEBUG", "1")},
     ).stdout
@@ -141,12 +145,22 @@ def scenario(page) -> None:
     page.click("#start-btn")
     page.wait_for_url("**/runs/*", timeout=20_000)
     run_id = int(page.url.rstrip("/").rsplit("/", 1)[1])
-    begin_step("running", "Import running", f"/runs/{run_id}", "Each batch commits rows, counters and checkpoint in one transaction.")
+    begin_step(
+        "running",
+        "Import running",
+        f"/runs/{run_id}",
+        "Each batch commits rows, counters and checkpoint in one transaction.",
+    )
     caption(page, "Each batch commits its rows, counters and checkpoint in one transaction.", 5)
     wait_run(run_id, lambda s: s["rows_read"] >= 60_000, 200, "20% progress", page)
     shot(page, "1-running")
 
-    begin_step("killed", "Worker killed", f"/runs/{run_id}", "The worker got SIGKILL mid-import. Numbers stop moving, and the heartbeat goes stale.")
+    begin_step(
+        "killed",
+        "Worker killed",
+        f"/runs/{run_id}",
+        "The worker got SIGKILL mid-import. Numbers stop moving, and the heartbeat goes stale.",
+    )
     compose("kill", "-s", "SIGKILL", "worker")
     if run_state(run_id)["status"] != "running":
         raise SystemExit("The kill landed after the import ended")
@@ -154,7 +168,12 @@ def scenario(page) -> None:
     compose("up", "-d", "worker")
     caption(page, "It is back. The run's heartbeat goes stale, and the reaper will notice.", 2)
     state = wait_run(run_id, lambda s: s["status"] == "interrupted", 120, "reaper", page)
-    begin_step("interrupted", "Interrupted", f"/runs/{run_id}", "The reaper marked the run interrupted. Nothing after the last checkpoint counts.")
+    begin_step(
+        "interrupted",
+        "Interrupted",
+        f"/runs/{run_id}",
+        "The reaper marked the run interrupted. Nothing after the last checkpoint counts.",
+    )
     page.wait_for_timeout(5000)
     shot(page, "2-interrupted")
     caption(page, f"Interrupted. The last durable checkpoint is row {state['checkpoint_row']:,}.", 5)
@@ -165,12 +184,22 @@ def scenario(page) -> None:
     state = wait_run(run_id, lambda s: s["status"] in ("completed", "failed"), 400, "completion", page)
     if state["status"] != "completed" or not state["reconciliation"]["balanced"]:
         raise SystemExit(f"Run ended {state['status']} with report {state['reconciliation']}")
-    begin_step("completed", "Completed and reconciled", f"/runs/{run_id}", "The file was read again and compared with the database.")
+    begin_step(
+        "completed",
+        "Completed and reconciled",
+        f"/runs/{run_id}",
+        "The file was read again and compared with the database.",
+    )
     page.wait_for_timeout(5000)
     shot(page, "3-completed")
     caption(page, "The file was read again and compared with the database: 0 discrepancies.", 7)
 
-    begin_step("quarantine", "Quarantine", f"/runs/{run_id}/quarantine", "Broken rows are kept with their reason, for a person to correct or dismiss.")
+    begin_step(
+        "quarantine",
+        "Quarantine",
+        f"/runs/{run_id}/quarantine",
+        "Broken rows are kept with their reason, for a person to correct or dismiss.",
+    )
     page.goto(f"{URL}/runs/{run_id}/quarantine")
     page.wait_for_timeout(1500)
     shot(page, "4-quarantine")
@@ -180,11 +209,21 @@ def scenario(page) -> None:
         6,
     )
 
-    begin_step("healthy", "Ticketing connector", "/integration", "A stand-in for the external API, with failures that can be switched on.")
+    begin_step(
+        "healthy",
+        "Ticketing connector",
+        "/integration",
+        "A stand-in for the external API, with failures that can be switched on.",
+    )
     page.goto(f"{URL}/integration")
     page.wait_for_timeout(1500)
     caption(page, "Now the ticketing API. This is a stand-in, with failures we can switch on.", 5)
-    begin_step("failures", "API failing", "/integration", "30% server errors and 20% rate limits during a full re-sync. The connector retries with backoff.")
+    begin_step(
+        "failures",
+        "API failing",
+        "/integration",
+        "30% server errors and 20% rate limits during a full re-sync. The connector retries with backoff.",
+    )
     httpx.post(
         f"{API}/connector/faults", json={"p_500": 0.3, "p_429": 0.2, "retry_after": 0.2}
     ).raise_for_status()
@@ -199,14 +238,24 @@ def scenario(page) -> None:
     )
     shot(page, "5-integration-failures")
 
-    begin_step("outage", "Full outage", "/integration", "The circuit breaker opens. Calls are refused locally, so the service is left alone.")
+    begin_step(
+        "outage",
+        "Full outage",
+        "/integration",
+        "The circuit breaker opens. Calls are refused locally, so the service is left alone.",
+    )
     httpx.post(f"{API}/connector/faults", json={"outage": True}).raise_for_status()
     caption(page, "A full outage.", 2)
     wait_health(lambda h: h["breaker"] == "open", 90, "breaker to open", page)
     page.wait_for_timeout(2500)
     shot(page, "6-integration-open")
     caption(page, "The circuit breaker opens. Calls are refused locally, so the service is left alone.", 7)
-    begin_step("recovered", "Recovered", "/integration", "The breaker probes and closes by itself. Sync catches up with nothing lost.")
+    begin_step(
+        "recovered",
+        "Recovered",
+        "/integration",
+        "The breaker probes and closes by itself. Sync catches up with nothing lost.",
+    )
     httpx.post(f"{API}/connector/faults", json={}).raise_for_status()
     caption(page, "The service is back. The breaker probes and closes by itself.", 2)
     wait_health(lambda h: h["breaker"] == "closed" and h["caught_up"], 200, "recovery", page)
@@ -214,7 +263,12 @@ def scenario(page) -> None:
     shot(page, "7-integration-recovered")
     caption(page, "Recovered, and caught up, with nothing lost.", 5)
 
-    begin_step("load", "Load results", "/load-results", "Measurements from the results file, on the machine each one names.")
+    begin_step(
+        "load",
+        "Load results",
+        "/load-results",
+        "Measurements from the results file, on the machine each one names.",
+    )
     page.goto(f"{URL}/load-results")
     page.wait_for_timeout(1500)
     shot(page, "8-load-results")

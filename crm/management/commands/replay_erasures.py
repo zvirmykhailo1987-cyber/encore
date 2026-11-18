@@ -19,5 +19,7 @@ class Command(BaseCommand):
         if options["dump"]:
             Path(options["dump"]).write_text(json.dumps(export_ledger()), encoding="utf-8")
             return
-        ledger = json.loads(Path(options["ledger"]).read_text(encoding="utf-8")) if options["ledger"] else None
+        ledger = (
+            json.loads(Path(options["ledger"]).read_text(encoding="utf-8")) if options["ledger"] else None
+        )
         self.stdout.write(json.dumps(replay_erasures(ledger)))

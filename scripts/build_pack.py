@@ -27,12 +27,24 @@ TEXT_DOCS = DOCS
 CHIP_BUILT, CHIP_DESIGN, CHIP_DESIGN_ONLY = "Built", "Design", "Design only"
 POSTPROCESS = None
 LANG = "en"
-OUT =ROOT / "dist" / "Encore-Pack.html"
+OUT = ROOT / "dist" / "Encore-Pack.html"
 HERE = Path(__file__).parent / "pack"
 FINAL = "--final" in sys.argv
 LOCAL_WORDS = HERE / "forbidden.local.txt"
 FORBIDDEN = LOCAL_WORDS.read_text(encoding="utf-8").split() if LOCAL_WORDS.exists() else []
-NOT_IN_ZIP = ("docs/uk/", "scripts/pack_uk/", "scripts/build_pack_uk.py", "docs/demo-uk", "docs/shots-uk/", "docs/demo.webm", "docs/replay.json", "docs/shots/", "docs/design/", "dist/", "data/")
+NOT_IN_ZIP = (
+    "docs/uk/",
+    "scripts/pack_uk/",
+    "scripts/build_pack_uk.py",
+    "docs/demo-uk",
+    "docs/shots-uk/",
+    "docs/demo.webm",
+    "docs/replay.json",
+    "docs/shots/",
+    "docs/design/",
+    "dist/",
+    "data/",
+)
 BRAND = (
     '<svg viewBox="0 0 26 18" aria-hidden="true"><path d="M3 9H9L13 3H23" fill="none" stroke="currentColor" stroke-width="1.6"/>'
     '<path d="M9 9L13 15H23" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="3" cy="9" r="2.4" fill="var(--accent)"/>'
@@ -69,10 +81,15 @@ def load(name: str, default=None):
 
 def project_files() -> list[str]:
     done = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return sorted(
-        path for path in done.stdout.splitlines()
+        path
+        for path in done.stdout.splitlines()
         if (ROOT / path).is_file() and not path.startswith(NOT_IN_ZIP)
     )
 
@@ -155,8 +172,14 @@ def render_md(text: str, files: set[str], tests: dict[str, str]) -> str:
     body = body.replace("<table>", '<div class="tw"><table>').replace("</table>", "</table></div>")
     body = re.sub(r'<a href="(https?://)', r'<a rel="noreferrer" target="_blank" href="\1', body)
     body = body.replace(f"<strong>{CHIP_BUILT}</strong>", f'<span class="chip built">{CHIP_BUILT}</span>')
-    body = re.sub(rf"<td>(?:{CHIP_DESIGN_ONLY}|{CHIP_DESIGN})</td>", f'<td><span class="chip design">{CHIP_DESIGN}</span></td>', body)
-    body = re.sub(rf"(?<![\w-]){CHIP_DESIGN}(?= \| |</td>)", f'<span class="chip design">{CHIP_DESIGN}</span>', body)
+    body = re.sub(
+        rf"<td>(?:{CHIP_DESIGN_ONLY}|{CHIP_DESIGN})</td>",
+        f'<td><span class="chip design">{CHIP_DESIGN}</span></td>',
+        body,
+    )
+    body = re.sub(
+        rf"(?<![\w-]){CHIP_DESIGN}(?= \| |</td>)", f'<span class="chip design">{CHIP_DESIGN}</span>', body
+    )
     body = re.sub(r'<pre><code class="language-bash">', '<pre class="cmd"><code>', body)
 
     def link_code(match: re.Match) -> str:
@@ -171,7 +194,13 @@ def render_md(text: str, files: set[str], tests: dict[str, str]) -> str:
             return f'<a href="#code" data-file="{word}"><code>{match.group(1)}</code></a>'
         short = word.rstrip("/")
         generated = FINAL or not short.endswith((".json", ".txt"))
-        if generated and "/" in short and not short.startswith(("/", "http")) and not (ROOT / short).exists() and re.fullmatch(r"(docs|scripts|deploy|tests|imports|ticketing|crm|encore)/[\w./-]+", short):
+        if (
+            generated
+            and "/" in short
+            and not short.startswith(("/", "http"))
+            and not (ROOT / short).exists()
+            and re.fullmatch(r"(docs|scripts|deploy|tests|imports|ticketing|crm|encore)/[\w./-]+", short)
+        ):
             raise SystemExit(f"The text names a file that does not exist: {word}")
         return match.group(0)
 
@@ -204,7 +233,9 @@ def parse_questions(files: set[str], tests: dict[str, str]) -> list[dict]:
 def external_sources(names: list[str]) -> list[tuple[str, str, str]]:
     seen = {}
     for name in names:
-        for label, url in re.findall(r"\[([^\]]+)\]\((https?://[^)]+)\)", (TEXT_DOCS / name).read_text(encoding="utf-8")):
+        for label, url in re.findall(
+            r"\[([^\]]+)\]\((https?://[^)]+)\)", (TEXT_DOCS / name).read_text(encoding="utf-8")
+        ):
             seen.setdefault(url, (label, lead_of(name)))
     return sorted(((label, url, where) for url, (label, where) in seen.items()), key=lambda r: r[1])
 
@@ -239,7 +270,10 @@ def find(rows, name):
 def table(head: list[str], rows: list[list[str]], right: set[int] = frozenset()) -> str:
     th = "".join(f'<th class="{"r" if i in right else ""}">{h}</th>' for i, h in enumerate(head))
     trs = "".join(
-        "<tr>" + "".join(f'<td class="{"r" if i in right else ""}">{c}</td>' for i, c in enumerate(row)) + "</tr>" for row in rows
+        "<tr>"
+        + "".join(f'<td class="{"r" if i in right else ""}">{c}</td>' for i, c in enumerate(row))
+        + "</tr>"
+        for row in rows
     )
     return f'<div class="tw"><table><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>'
 
@@ -251,7 +285,17 @@ def fan_rows(rows, prefix_pairs):
         if not r:
             continue
         share = r["served_from_cache"] / r["requests"] * 100 if r.get("requests") else None
-        out.append([label, path, n(r.get("requests_per_second")), f'{r.get("failed_percent", 0):g}%', ms(r.get("fan_p95_ms")), ms(r.get("fan_p99_ms")), f"{share:.1f}%" if share is not None else "—"])
+        out.append(
+            [
+                label,
+                path,
+                n(r.get("requests_per_second")),
+                f"{r.get('failed_percent', 0):g}%",
+                ms(r.get("fan_p95_ms")),
+                ms(r.get("fan_p99_ms")),
+                f"{share:.1f}%" if share is not None else "—",
+            ]
+        )
     return out
 
 
@@ -262,12 +306,32 @@ def gate_rows(rows, pairs):
         if not r:
             continue
         admitted = r["tickets_admitted"] / (r["seconds_at_peak"] + 20)
-        out.append([n(req), n(admitted), f'{r.get("gate_failed_percent", 0):g}%', ms(r.get("gate_p50_ms")), ms(r.get("gate_p95_ms")), ms(r.get("gate_p99_ms")), "equal" if r["tickets_admitted"] == r["outbox_messages"] else "NOT equal"])
+        out.append(
+            [
+                n(req),
+                n(admitted),
+                f"{r.get('gate_failed_percent', 0):g}%",
+                ms(r.get("gate_p50_ms")),
+                ms(r.get("gate_p95_ms")),
+                ms(r.get("gate_p99_ms")),
+                "equal" if r["tickets_admitted"] == r["outbox_messages"] else "NOT equal",
+            ]
+        )
     return out
 
 
-FULL_FANS = [("5,000", "Django directly", "Refresh spike, 5,000 fans, no edge"), ("5,000", "Through the edge", "Refresh spike, 5,000 fans"), ("10,000", "Through the edge", "Refresh spike, 10,000 fans"), ("20,000", "Through the edge", "Refresh spike, 20,000 fans")]
-LOW_FANS = [("5,000", "Django directly", "Low: 5,000 fans, Django directly"), ("5,000", "Through the edge", "Low: 5,000 fans"), ("10,000", "Through the edge", "Low: 10,000 fans"), ("20,000", "Through the edge", "Low: 20,000 fans")]
+FULL_FANS = [
+    ("5,000", "Django directly", "Refresh spike, 5,000 fans, no edge"),
+    ("5,000", "Through the edge", "Refresh spike, 5,000 fans"),
+    ("10,000", "Through the edge", "Refresh spike, 10,000 fans"),
+    ("20,000", "Through the edge", "Refresh spike, 20,000 fans"),
+]
+LOW_FANS = [
+    ("5,000", "Django directly", "Low: 5,000 fans, Django directly"),
+    ("5,000", "Through the edge", "Low: 5,000 fans"),
+    ("10,000", "Through the edge", "Low: 10,000 fans"),
+    ("20,000", "Through the edge", "Low: 20,000 fans"),
+]
 FULL_GATES = [(s, f"Doors open, 10,000 fans and {s:,} scans per second") for s in (300, 600, 1000, 1500)]
 LOW_GATES = [(s, f"Low: 10,000 fans and {s} scans per second") for s in (75, 150, 300, 600)]
 
@@ -275,7 +339,9 @@ LOW_GATES = [(s, f"Low: 10,000 fans and {s} scans per second") for s in (75, 150
 def log_x(value, low, high, left, width):
     import math
 
-    return left + (math.log10(max(value, low)) - math.log10(low)) / (math.log10(high) - math.log10(low)) * width
+    return (
+        left + (math.log10(max(value, low)) - math.log10(low)) / (math.log10(high) - math.log10(low)) * width
+    )
 
 
 def fan_chart(full, low) -> str:
@@ -283,31 +349,49 @@ def fan_chart(full, low) -> str:
     for (label, path, a), (_, _, b) in zip(FULL_FANS, LOW_FANS, strict=True):
         ra, rb = find(full, a), find(low, b)
         if ra and rb:
-            rows.append((f"{label}, {'no edge' if 'directly' in path else 'edge'}", ra["fan_p95_ms"], rb["fan_p95_ms"]))
+            rows.append(
+                (
+                    f"{label}, {'no edge' if 'directly' in path else 'edge'}",
+                    ra["fan_p95_ms"],
+                    rb["fan_p95_ms"],
+                )
+            )
     if not rows:
         return ""
     left, width, top, gap = 150, 580, 26, 44
     low_x, high_x = 0.5, 20000
     ticks = [1, 10, 100, 1000, 10000]
     height = top + gap * len(rows) + 28
-    parts = [f'<svg viewBox="0 0 800 {height}" role="img" aria-label="Fan response time at the 95th percentile, 8 cores against 2 cores, logarithmic scale">']
+    parts = [
+        f'<svg viewBox="0 0 800 {height}" role="img" aria-label="Fan response time at the 95th percentile, 8 cores against 2 cores, logarithmic scale">'
+    ]
     for t in ticks:
         x = log_x(t, low_x, high_x, left, width)
-        parts.append(f'<line class="g" x1="{x:.1f}" x2="{x:.1f}" y1="{top - 8}" y2="{height - 24}"/><text x="{x:.1f}" y="{height - 8}" text-anchor="middle">{t:,} ms</text>')
+        parts.append(
+            f'<line class="g" x1="{x:.1f}" x2="{x:.1f}" y1="{top - 8}" y2="{height - 24}"/><text x="{x:.1f}" y="{height - 8}" text-anchor="middle">{t:,} ms</text>'
+        )
     for i, (label, a, b) in enumerate(rows):
         y = top + i * gap + 10
         xa, xb = log_x(a, low_x, high_x, left, width), log_x(b, low_x, high_x, left, width)
         parts.append(f'<text x="{left - 12}" y="{y + 4}" text-anchor="end">{label}</text>')
         parts.append(f'<line class="a" x1="{min(xa, xb):.1f}" x2="{max(xa, xb):.1f}" y1="{y}" y2="{y}"/>')
-        parts.append(f'<circle class="s1" cx="{xa:.1f}" cy="{y}" r="5.5"/><circle class="s2" cx="{xb:.1f}" cy="{y}" r="5"/>')
+        parts.append(
+            f'<circle class="s1" cx="{xa:.1f}" cy="{y}" r="5.5"/><circle class="s2" cx="{xb:.1f}" cy="{y}" r="5"/>'
+        )
         short = lambda v: f"{v:,.0f}" if v >= 10 else f"{v:g}"  # noqa: E731
         value = f"{short(a)} / {short(b)} ms"
         if max(xa, xb) > 620:
-            parts.append(f'<text class="v" x="{min(xa, xb) - 11:.1f}" y="{y + 4}" text-anchor="end">{value}</text>')
+            parts.append(
+                f'<text class="v" x="{min(xa, xb) - 11:.1f}" y="{y + 4}" text-anchor="end">{value}</text>'
+            )
         else:
             parts.append(f'<text class="v" x="{max(xa, xb) + 11:.1f}" y="{y + 4}">{value}</text>')
     parts.append("</svg>")
-    return '<div class="chart"><div class="legend"><span><i class="k1"></i>8 cores</span><span><i class="k2"></i>2 cores, 2 GB</span><span>p95, logarithmic scale. Each pair reads 8 cores / 2 cores.</span></div>' + "".join(parts) + "</div>"
+    return (
+        '<div class="chart"><div class="legend"><span><i class="k1"></i>8 cores</span><span><i class="k2"></i>2 cores, 2 GB</span><span>p95, logarithmic scale. Each pair reads 8 cores / 2 cores.</span></div>'
+        + "".join(parts)
+        + "</div>"
+    )
 
 
 def gate_chart(full, low) -> str:
@@ -326,12 +410,18 @@ def gate_chart(full, low) -> str:
     top_value = 1600
     sx = lambda v: left + v / top_value * width  # noqa: E731
     sy = lambda v: top + height - v / 1000 * height  # noqa: E731
-    parts = ['<svg viewBox="0 0 800 280" role="img" aria-label="Tickets admitted per second against scans requested, for both machines">']
+    parts = [
+        '<svg viewBox="0 0 800 280" role="img" aria-label="Tickets admitted per second against scans requested, for both machines">'
+    ]
     for v in (0, 250, 500, 750, 1000):
-        parts.append(f'<line class="g" x1="{left}" x2="{left + width}" y1="{sy(v):.1f}" y2="{sy(v):.1f}"/><text x="{left - 8}" y="{sy(v) + 4:.1f}" text-anchor="end">{v:,}</text>')
+        parts.append(
+            f'<line class="g" x1="{left}" x2="{left + width}" y1="{sy(v):.1f}" y2="{sy(v):.1f}"/><text x="{left - 8}" y="{sy(v) + 4:.1f}" text-anchor="end">{v:,}</text>'
+        )
     for v in (0, 300, 600, 1000, 1500):
         parts.append(f'<text x="{sx(v):.1f}" y="{top + height + 18}" text-anchor="middle">{v:,}</text>')
-    parts.append(f'<line class="ref" x1="{sx(0):.1f}" y1="{sy(0):.1f}" x2="{sx(1000):.1f}" y2="{sy(1000):.1f}"/>')
+    parts.append(
+        f'<line class="ref" x1="{sx(0):.1f}" y1="{sy(0):.1f}" x2="{sx(1000):.1f}" y2="{sy(1000):.1f}"/>'
+    )
     parts.append(f'<text x="{sx(1010):.1f}" y="{sy(1000) + 14:.1f}">every scan admitted</text>')
     for points, line, mark in ((a, "l1", "s1"), (b, "l2", "s2")):
         path = " ".join(f"{sx(x):.1f},{sy(y):.1f}" for x, y in points)
@@ -340,18 +430,45 @@ def gate_chart(full, low) -> str:
             parts.append(f'<circle class="{mark}" cx="{sx(x):.1f}" cy="{sy(y):.1f}" r="4.5"/>')
         x, y = points[-1]
         parts.append(f'<text class="v" x="{sx(x) + 9:.1f}" y="{sy(y) + 4:.1f}">{y:,.0f}/s</text>')
-    parts.append(f'<text x="{left + width / 2}" y="274" text-anchor="middle">Scans requested per second. Vertical axis: tickets admitted per second</text></svg>')
-    return '<div class="chart"><div class="legend"><span><i class="k1"></i>8 cores</span><span><i class="k2"></i>2 cores, 2 GB</span></div>' + "".join(parts) + "</div>"
+    parts.append(
+        f'<text x="{left + width / 2}" y="274" text-anchor="middle">Scans requested per second. Vertical axis: tickets admitted per second</text></svg>'
+    )
+    return (
+        '<div class="chart"><div class="legend"><span><i class="k1"></i>8 cores</span><span><i class="k2"></i>2 cores, 2 GB</span></div>'
+        + "".join(parts)
+        + "</div>"
+    )
 
 
 def parallel_block(parallel) -> str:
     if not parallel:
         return '<p class="caveat">Not measured yet.</p>'
     rows = [
-        [str(r["organizers_at_once"]), n(r["rows_each"]), n(r["rows_per_second_all_together"]), f'{r["seconds_including_reconciliation"]:,.0f} s', str(r["discrepancies"]), str(r["cross_organizer_merges"])]
+        [
+            str(r["organizers_at_once"]),
+            n(r["rows_each"]),
+            n(r["rows_per_second_all_together"]),
+            f"{r['seconds_including_reconciliation']:,.0f} s",
+            str(r["discrepancies"]),
+            str(r["cross_organizer_merges"]),
+        ]
         for r in parallel["results"]
     ]
-    return table(["Organizers at once", "Rows each", "Rows per second, all together", "Time", "Discrepancies", "Cross-organizer merges"], rows, {0, 1, 2, 3, 4, 5}) + f'<p class="caveat">{html.escape(parallel["machine"])}. {parallel["measured"]}.</p>'
+    return (
+        table(
+            [
+                "Organizers at once",
+                "Rows each",
+                "Rows per second, all together",
+                "Time",
+                "Discrepancies",
+                "Cross-organizer merges",
+            ],
+            rows,
+            {0, 1, 2, 3, 4, 5},
+        )
+        + f'<p class="caveat">{html.escape(parallel["machine"])}. {parallel["measured"]}.</p>'
+    )
 
 
 # ------------------------------------------------------------------ replay
@@ -371,7 +488,9 @@ def inline_page(page: str, fonts: dict, statics: Path, boot_marker: str = "<!--R
 
     page = re.sub(r'<link rel="preload"[^>]*>', "", page)
     page = re.sub(
-        r'<link rel="stylesheet" href="/static/console/([\w.-]+)">', lambda m: f"<style>{css(m.group(1))}</style>", page
+        r'<link rel="stylesheet" href="/static/console/([\w.-]+)">',
+        lambda m: f"<style>{css(m.group(1))}</style>",
+        page,
     )
     page = re.sub(
         r'<script src="/static/console/([\w.-]+)"></script>',
@@ -400,13 +519,26 @@ def replay_data(fonts: dict) -> dict | None:
         thinned = {}
         for path, frames in by_path.items():
             keep = 7
-            chosen = frames if len(frames) <= keep else [frames[round(i * (len(frames) - 1) / (keep - 1))] for i in range(keep)]
+            chosen = (
+                frames
+                if len(frames) <= keep
+                else [frames[round(i * (len(frames) - 1) / (keep - 1))] for i in range(keep)]
+            )
             thinned[path] = [{"body": f["body"], "total": f.get("total")} for f in chosen]
             fallback[path] = thinned[path][-1]
         match = re.fullmatch(r"/runs/(\d+)", step["path"])
         if match:
             run_id = int(match.group(1))
-        steps.append({"key": step["key"], "title": step["title"], "path": step["path"], "page": step["path"], "note": step["note"], "frames": thinned})
+        steps.append(
+            {
+                "key": step["key"],
+                "title": step["title"],
+                "path": step["path"],
+                "page": step["path"],
+                "note": step["note"],
+                "frames": thinned,
+            }
+        )
     for step in steps:
         if step["page"] not in pages:
             raise SystemExit(f"No recorded page for {step['page']}")
@@ -417,31 +549,141 @@ def replay_data(fonts: dict) -> dict | None:
 
 
 REQUIREMENTS = [
-    ("Efficient, reliable data import and migration pipelines", "Streaming importer: flat memory from 1 to 10 million rows, COPY, resume after a kill, dry run, rollback, reconciliation", "Real data. Production", "#migration"),
-    ("High-volume imports in production", "Measured on synthetic data, on a laptop", "<b>Production experience: none</b>", "#measured"),
-    ("Moving customers from a legacy CRM", "Per-organizer isolation, go or no-go report, cutover runbook", "A real cutover. Reverse sync after first writes", "#migration"),
-    ("Stronger connection to an external ticketing API", "Client, cursor sync, webhooks and outbox, tested against a stand-in with injected failures", "A real API", "#integration"),
-    ("Timeouts, retries, idempotency, rate limiting", "All present, in one place, each with tests that bug injection confirms", "A shared retry budget across workers", "#integration"),
-    ("Performance and reliability under load", "k6 up to 20,000 fans, gate scans until saturation, two machine sizes, one real bug found and fixed", "Production traffic, a real CDN", "#measured"),
-    ("Refactoring without unnecessary rewrites", "A written approach. Decisions driven by profiling", "<b>Refactoring real legacy code: not shown.</b> All of this is new", "#delivery"),
-    ("Django architecture", "Apps split by domain, 21 written decisions with costs", "A large existing codebase", "#decisions"),
-    ("ORM performance", "Query count tests, query plans, COPY and raw SQL where profiling asked for them", "Production query tuning", "#delivery"),
-    ("Background jobs", "Celery with separate queues, late acks, leases, reaper, automatic resume", "Scale beyond a few workers", "#operations"),
-    ("Testing strategy", "Real PostgreSQL, killed processes, injected failures, injected bugs", "Real-data tests", "#proof"),
-    ("Debugging production issues", "One real investigation, written up: a 4 minute hang traced into Gunicorn", "<b>A real production incident: none</b>", "#incident"),
-    ("Senior or lead mindset: drive, mentor, scope", "Decisions and their costs in writing. Limits stated", "<b>Mentoring and leading a team: not shown</b>", "#how-it-was-built"),
-    ("Task breakdown, estimates, progress reports", "An example of each", "A track record on a team", "#delivery"),
-    ("5 to 7+ years of backend development", "—", "<b>Not met.</b> No commercial Django before this project", "#questions"),
-    ("Kubernetes and operations (nice to have)", "Manifests, probes, PDB, HPA, network policy, alerts, runbooks, run on one node with failures injected", "A multi-node production cluster", "#operations"),
-    ("MongoDB, Meteor (nice to have)", "Reader for mongoexport output, written from documentation and tested on fixtures", "Experience with a real system", "#migration"),
-    ("Node.js, React, Elasticsearch (nice to have)", "A plan for search during migration", "<b>Not shown</b>", "#migration"),
+    (
+        "Efficient, reliable data import and migration pipelines",
+        "Streaming importer: flat memory from 1 to 10 million rows, COPY, resume after a kill, dry run, rollback, reconciliation",
+        "Real data. Production",
+        "#migration",
+    ),
+    (
+        "High-volume imports in production",
+        "Measured on synthetic data, on a laptop",
+        "<b>Production experience: none</b>",
+        "#measured",
+    ),
+    (
+        "Moving customers from a legacy CRM",
+        "Per-organizer isolation, go or no-go report, cutover runbook",
+        "A real cutover. Reverse sync after first writes",
+        "#migration",
+    ),
+    (
+        "Stronger connection to an external ticketing API",
+        "Client, cursor sync, webhooks and outbox, tested against a stand-in with injected failures",
+        "A real API",
+        "#integration",
+    ),
+    (
+        "Timeouts, retries, idempotency, rate limiting",
+        "All present, in one place, each with tests that bug injection confirms",
+        "A shared retry budget across workers",
+        "#integration",
+    ),
+    (
+        "Performance and reliability under load",
+        "k6 up to 20,000 fans, gate scans until saturation, two machine sizes, one real bug found and fixed",
+        "Production traffic, a real CDN",
+        "#measured",
+    ),
+    (
+        "Refactoring without unnecessary rewrites",
+        "A written approach. Decisions driven by profiling",
+        "<b>Refactoring real legacy code: not shown.</b> All of this is new",
+        "#delivery",
+    ),
+    (
+        "Django architecture",
+        "Apps split by domain, 21 written decisions with costs",
+        "A large existing codebase",
+        "#decisions",
+    ),
+    (
+        "ORM performance",
+        "Query count tests, query plans, COPY and raw SQL where profiling asked for them",
+        "Production query tuning",
+        "#delivery",
+    ),
+    (
+        "Background jobs",
+        "Celery with separate queues, late acks, leases, reaper, automatic resume",
+        "Scale beyond a few workers",
+        "#operations",
+    ),
+    (
+        "Testing strategy",
+        "Real PostgreSQL, killed processes, injected failures, injected bugs",
+        "Real-data tests",
+        "#proof",
+    ),
+    (
+        "Debugging production issues",
+        "One real investigation, written up: a 4 minute hang traced into Gunicorn",
+        "<b>A real production incident: none</b>",
+        "#incident",
+    ),
+    (
+        "Senior or lead mindset: drive, mentor, scope",
+        "Decisions and their costs in writing. Limits stated",
+        "<b>Mentoring and leading a team: not shown</b>",
+        "#how-it-was-built",
+    ),
+    (
+        "Task breakdown, estimates, progress reports",
+        "An example of each",
+        "A track record on a team",
+        "#delivery",
+    ),
+    (
+        "5 to 7+ years of backend development",
+        "—",
+        "<b>Not met.</b> No commercial Django before this project",
+        "#questions",
+    ),
+    (
+        "Kubernetes and operations (nice to have)",
+        "Manifests, probes, PDB, HPA, network policy, alerts, runbooks, run on one node with failures injected",
+        "A multi-node production cluster",
+        "#operations",
+    ),
+    (
+        "MongoDB, Meteor (nice to have)",
+        "Reader for mongoexport output, written from documentation and tested on fixtures",
+        "Experience with a real system",
+        "#migration",
+    ),
+    (
+        "Node.js, React, Elasticsearch (nice to have)",
+        "A plan for search during migration",
+        "<b>Not shown</b>",
+        "#migration",
+    ),
 ]
 
 NAV = [
     ("Overview", [("start", "Start here"), ("program", "The program"), ("requirements", "Against the job")]),
-    ("Evidence", [("measured", "Measured"), ("proof", "Proof it works"), ("how-it-was-built", "How it was built")]),
-    ("Design", [("architecture", "Architecture"), ("migration", "Migration playbook"), ("integration", "Ticketing API"), ("live-events", "Fans and gates"), ("decisions", "Decisions")]),
-    ("Running it", [("operations", "Operations"), ("security-privacy", "Security and privacy"), ("incident", "Incident review"), ("delivery", "How I would work")]),
+    (
+        "Evidence",
+        [("measured", "Measured"), ("proof", "Proof it works"), ("how-it-was-built", "How it was built")],
+    ),
+    (
+        "Design",
+        [
+            ("architecture", "Architecture"),
+            ("migration", "Migration playbook"),
+            ("integration", "Ticketing API"),
+            ("live-events", "Fans and gates"),
+            ("decisions", "Decisions"),
+        ],
+    ),
+    (
+        "Running it",
+        [
+            ("operations", "Operations"),
+            ("security-privacy", "Security and privacy"),
+            ("incident", "Incident review"),
+            ("delivery", "How I would work"),
+        ],
+    ),
     ("Reference", [("code", "All the code"), ("questions", "Questions"), ("sources", "Sources")]),
 ]
 
@@ -458,7 +700,9 @@ def next_links(key: str) -> str:
     flat = [item for _, items in NAV for item in items]
     i = next(index for index, (k, _) in enumerate(flat) if k == key)
     prev_link = f'<a href="#{flat[i - 1][0]}">&larr; {flat[i - 1][1]}</a>' if i else "<span></span>"
-    next_link = f'<a href="#{flat[i + 1][0]}">{flat[i + 1][1]} &rarr;</a>' if i + 1 < len(flat) else "<span></span>"
+    next_link = (
+        f'<a href="#{flat[i + 1][0]}">{flat[i + 1][1]} &rarr;</a>' if i + 1 < len(flat) else "<span></span>"
+    )
     return f'<div class="next">{prev_link}{next_link}</div>'
 
 
@@ -467,7 +711,9 @@ def page(key: str, title: str, body: str) -> str:
 
 
 def doc_page(key: str, name: str, nav_title: str, files, tests) -> str:
-    return page(key, nav_title, f"<h1>{html.escape(lead_of(name))}</h1>" + render_md(read_doc(name), files, tests))
+    return page(
+        key, nav_title, f"<h1>{html.escape(lead_of(name))}</h1>" + render_md(read_doc(name), files, tests)
+    )
 
 
 def architecture_svg() -> str:
@@ -520,7 +766,11 @@ def data_model() -> str:
     if not python.exists():
         python = ROOT / ".venv" / "bin" / "python"
     done = subprocess.run(
-        [str(python), "-c", code], cwd=ROOT, capture_output=True, text=True, check=True,
+        [str(python), "-c", code],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
         env={**__import__("os").environ, "ENCORE_DEBUG": "1", "DJANGO_SETTINGS_MODULE": "encore.settings"},
     )
     models = json.loads(done.stdout)
@@ -537,7 +787,10 @@ def build() -> None:
     file_set = set(files)
     code = code_data(files)
     archive = source_zip(files)
-    fonts = {name: base64.b64encode((ROOT / "static/console/fonts" / name).read_bytes()).decode() for name in ("geist.woff2", "geist-mono.woff2")}
+    fonts = {
+        name: base64.b64encode((ROOT / "static/console/fonts" / name).read_bytes()).decode()
+        for name in ("geist.woff2", "geist-mono.woff2")
+    }
 
     full = load("benchmarks.json", [])
     low = load("benchmarks-low.json", [])
@@ -564,8 +817,10 @@ def build() -> None:
     tests_line = ""
     if evidence:
         t = evidence["tests"]
-        tests_line = f'{t["passed"]} tests passing on {html.escape(evidence["platform"].split(",")[0])}, against real PostgreSQL. {t["skipped"]} skipped.'
-    mutation_line = f'{mutation["caught"]} of {mutation["bugs_injected"]} injected bugs caught.' if mutation else ""
+        tests_line = f"{t['passed']} tests passing on {html.escape(evidence['platform'].split(',')[0])}, against real PostgreSQL. {t['skipped']} skipped."
+    mutation_line = (
+        f"{mutation['caught']} of {mutation['bugs_injected']} injected bugs caught." if mutation else ""
+    )
     start = f"""
 <div class="hero">
   <p class="kick">ENCORE / PROJECT PACK</p>
@@ -574,11 +829,23 @@ def build() -> None:
   <p class="status"><b>Status:</b> demo on synthetic data. It has never handled real customers or real traffic. AI wrote most of the code, under my direction.</p>
 </div>
 <div class="grid3">
-  <div class="card"><p class="num">{n(top10m.get("rows") if top10m else None)}<small>rows</small></p><p>imported at {n(top10m.get("rows_per_second") if top10m else None)} rows per second with {n(top10m.get("worker_peak_mb") if top10m else None)} MB of worker memory and {n(top10m.get("discrepancies") if top10m else None)} discrepancies.</p></div>
-  <div class="card"><p class="num">20,000<small>fans</small></p><p>refreshing one page: {top20.get("failed_percent", "—")}% failed, p95 {ms(top20.get("fan_p95_ms"))}. On a machine two levels smaller: {low20.get("failed_percent", "—")}% failed, p95 {ms(low20.get("fan_p95_ms"))}.</p></div>
+  <div class="card"><p class="num">{
+        n(top10m.get("rows") if top10m else None)
+    }<small>rows</small></p><p>imported at {
+        n(top10m.get("rows_per_second") if top10m else None)
+    } rows per second with {n(top10m.get("worker_peak_mb") if top10m else None)} MB of worker memory and {
+        n(top10m.get("discrepancies") if top10m else None)
+    } discrepancies.</p></div>
+  <div class="card"><p class="num">20,000<small>fans</small></p><p>refreshing one page: {
+        top20.get("failed_percent", "—")
+    }% failed, p95 {ms(top20.get("fan_p95_ms"))}. On a machine two levels smaller: {
+        low20.get("failed_percent", "—")
+    }% failed, p95 {ms(low20.get("fan_p95_ms"))}.</p></div>
   <div class="card"><p class="num">kill -9</p><p>at any moment loses nothing. A real process and a real Kubernetes pod were killed mid-import, then reconciled against the source.</p></div>
 </div>
-<p class="caveat">Laptop, synthetic data, one run per scenario. Machine details and limits are on <a href="#measured">Measured</a>. {tests_line} {mutation_line}</p>
+<p class="caveat">Laptop, synthetic data, one run per scenario. Machine details and limits are on <a href="#measured">Measured</a>. {
+        tests_line
+    } {mutation_line}</p>
 <h2>Three ways to look at it</h2>
 <div class="grid3">
   <a class="card" href="#program"><h3>Click through it, 5 minutes</h3><p>The real console, in this page, replaying a real run. Nothing to install.</p></a>
@@ -586,19 +853,50 @@ def build() -> None:
   <a class="card" href="#run"><h3>Run it for real, 10 minutes</h3><p>Save the source from this page, then two commands. You need Docker.</p></a>
 </div>
 <h2>Where to go, by role</h2>
-{table(["If you are", "Start with", "Then"], [
-    ["Hiring", '<a href="#requirements">Against the job</a>', '<a href="#how-it-was-built">How it was built</a>, <a href="#questions">Questions</a>'],
-    ["CTO or lead", '<a href="#migration">Migration playbook</a>', '<a href="#how-it-was-built">What a reviewer should distrust</a>, <a href="#delivery">First 90 days</a>'],
-    ["Backend engineer", '<a href="#code">All the code</a>', '<a href="#decisions">Decisions</a>, <a href="#proof">Bug injection</a>, <a href="#integration">Ticketing API</a>'],
-    ["Live events or product", '<a href="#live-events">Fans and gates</a>', '<a href="#migration">Migration playbook</a>'],
-    ["Operations", '<a href="#operations">Operations</a>', '<a href="#incident">Incident review</a>, <a href="#proof">Kubernetes run</a>'],
-    ["DPO or legal", '<a href="#security-privacy">Security and privacy</a>', '<a href="#questions">Questions</a>'],
-])}
+{
+        table(
+            ["If you are", "Start with", "Then"],
+            [
+                [
+                    "Hiring",
+                    '<a href="#requirements">Against the job</a>',
+                    '<a href="#how-it-was-built">How it was built</a>, <a href="#questions">Questions</a>',
+                ],
+                [
+                    "CTO or lead",
+                    '<a href="#migration">Migration playbook</a>',
+                    '<a href="#how-it-was-built">What a reviewer should distrust</a>, <a href="#delivery">First 90 days</a>',
+                ],
+                [
+                    "Backend engineer",
+                    '<a href="#code">All the code</a>',
+                    '<a href="#decisions">Decisions</a>, <a href="#proof">Bug injection</a>, <a href="#integration">Ticketing API</a>',
+                ],
+                [
+                    "Live events or product",
+                    '<a href="#live-events">Fans and gates</a>',
+                    '<a href="#migration">Migration playbook</a>',
+                ],
+                [
+                    "Operations",
+                    '<a href="#operations">Operations</a>',
+                    '<a href="#incident">Incident review</a>, <a href="#proof">Kubernetes run</a>',
+                ],
+                [
+                    "DPO or legal",
+                    '<a href="#security-privacy">Security and privacy</a>',
+                    '<a href="#questions">Questions</a>',
+                ],
+            ],
+        )
+    }
 <h2>What it does not show</h2>
 <p>Years of production experience. It has not met real data, real users or a real on-call night, and it is not ready for real personal data. The <a href="#requirements">requirements table</a> says plainly what is and is not covered, and <a href="#how-it-was-built">How it was built</a> lists where to distrust it.</p>
 <h2>Who built it</h2>
 <p>Mykhailo Zvir, <a href="mailto:zvirmykhailo1987@gmail.com">zvirmykhailo1987@gmail.com</a>. Degree in information security engineering, Lviv Polytechnic. IT lead at a district court from 2011 to 2015, running infrastructure and document automation. English: intermediate.</p>
-<div class="card" style="margin-top:18px;padding:0;overflow:hidden"><img alt="The console after a finished import, with reconciliation showing 0 discrepancies" src="data:image/png;base64,{hero_shot}" style="display:block;width:100%;height:auto"></div>
+<div class="card" style="margin-top:18px;padding:0;overflow:hidden"><img alt="The console after a finished import, with reconciliation showing 0 discrepancies" src="data:image/png;base64,{
+        hero_shot
+    }" style="display:block;width:100%;height:auto"></div>
 """
     sections.append(page("start", "Start here", start))
 
@@ -616,7 +914,8 @@ def build() -> None:
 <video id="demo-video" controls preload="metadata"></video>
 <h2 id="run">Run it for real</h2>
 <p>You need Docker with Compose. Nothing leaves your machine, and all data is generated locally.</p>
-<p><button class="btn p" type="button" data-save="zip-data" data-name="encore-source.zip" data-type="application/zip">Save the source code (.zip, {len(archive) // 1024:,} KB)</button></p>
+<p><button class="btn p" type="button" data-save="zip-data" data-name="encore-source.zip" data-type="application/zip">Save the source code (.zip, {
+        len(archive) // 1024:,} KB)</button></p>
 <p>Unpack it, and open a terminal in the <code>encore</code> folder.</p>
 <pre class="cmd"><code>export ENCORE_DEBUG=1</code></pre>
 <pre class="cmd"><code>docker compose up -d --build --wait</code></pre>
@@ -627,36 +926,90 @@ def build() -> None:
 <pre class="cmd"><code>docker compose up -d worker</code></pre>
 <p>After about 30 seconds the run turns to interrupted. Press Resume. When it finishes, the reconciliation panel should show 0 discrepancies. Then open Integration and switch on failures.</p>
 <h3>Check my claims yourself</h3>
-{table(["To check", "Command", "Time"], [
-    ["The tests", "<code>python -m venv .venv</code>, <code>.venv/bin/pip install -r requirements-dev.lock</code>, <code>docker compose up -d db redis</code>, <code>ENCORE_DEBUG=1 .venv/bin/pytest</code>", "A few minutes"],
-    ["The whole scenario, by script", "<code>python scripts/demo_scenario.py</code>", "A few minutes"],
-    ["The tests catch bugs", "<code>python scripts/mutation_check.py</code>", "About 30 minutes"],
-    ["Kubernetes", "<code>python scripts/k8s_proof.py</code>", "10 to 20 minutes"],
-    ["Every load number", "<code>bash scripts/all_measurements.sh</code>", "About 2 hours"],
-    ["CI, on Linux", "<code>python scripts/evidence.py</code>", "A few minutes"],
-])}
+{
+        table(
+            ["To check", "Command", "Time"],
+            [
+                [
+                    "The tests",
+                    "<code>python -m venv .venv</code>, <code>.venv/bin/pip install -r requirements-dev.lock</code>, <code>docker compose up -d db redis</code>, <code>ENCORE_DEBUG=1 .venv/bin/pytest</code>",
+                    "A few minutes",
+                ],
+                [
+                    "The whole scenario, by script",
+                    "<code>python scripts/demo_scenario.py</code>",
+                    "A few minutes",
+                ],
+                ["The tests catch bugs", "<code>python scripts/mutation_check.py</code>", "About 30 minutes"],
+                ["Kubernetes", "<code>python scripts/k8s_proof.py</code>", "10 to 20 minutes"],
+                ["Every load number", "<code>bash scripts/all_measurements.sh</code>", "About 2 hours"],
+                ["CI, on Linux", "<code>python scripts/evidence.py</code>", "A few minutes"],
+            ],
+        )
+    }
 <p class="caveat">The measurement scripts wipe the demo tables of the local stack.</p>
 """
     sections.append(page("program", "The program", player))
 
     # ---- requirements
-    req = table(["The job asks for", "Shown in this demo", "Not shown"], [[r, s, f'{x}<br><a href="{link}">Details</a>'] for r, s, x, link in REQUIREMENTS])
-    sections.append(page("requirements", "Against the job", f"""
+    req = table(
+        ["The job asks for", "Shown in this demo", "Not shown"],
+        [[r, s, f'{x}<br><a href="{link}">Details</a>'] for r, s, x, link in REQUIREMENTS],
+    )
+    sections.append(
+        page(
+            "requirements",
+            "Against the job",
+            f"""
 <h1>Against the job</h1>
 <p class="lead">Each requirement from the job description, what this demo shows for it, and what it does not. Everything in the middle column ran on synthetic data, on a laptop.</p>
 {req}
-"""))
+""",
+        )
+    )
 
     # ---- measured
     imports = sorted((r for r in full if r.get("rows")), key=lambda r: r["rows"])
-    import_rows = [[n(r["rows"]), f'{float(r["file_mb"]):,.0f} MB' if r.get("file_mb") else "—", f'{r["seconds_total"] / 60:,.1f} min', n(r.get("rows_per_second")), f'{r.get("worker_peak_mb")} MB', n(r.get("quarantined")), n(r.get("discrepancies"))] for r in imports]
+    import_rows = [
+        [
+            n(r["rows"]),
+            f"{float(r['file_mb']):,.0f} MB" if r.get("file_mb") else "—",
+            f"{r['seconds_total'] / 60:,.1f} min",
+            n(r.get("rows_per_second")),
+            f"{r.get('worker_peak_mb')} MB",
+            n(r.get("quarantined")),
+            n(r.get("discrepancies")),
+        ]
+        for r in imports
+    ]
     low_import = [r for r in low if r.get("rows")]
-    low_import_rows = [[n(r["rows"]), f'{r["seconds_total"] / 60:,.1f} min', n(r.get("rows_per_second")), f'{r.get("worker_peak_mb")} MB', n(r.get("discrepancies"))] for r in low_import]
+    low_import_rows = [
+        [
+            n(r["rows"]),
+            f"{r['seconds_total'] / 60:,.1f} min",
+            n(r.get("rows_per_second")),
+            f"{r.get('worker_peak_mb')} MB",
+            n(r.get("discrepancies")),
+        ]
+        for r in low_import
+    ]
     machine = next((r.get("machine") for r in full if r.get("machine")), "—")
-    best_speed = max((r["rows_per_second_all_together"] for r in parallel["results"]), default=4000) if parallel else (top10m or {}).get("rows_per_second", 4000)
+    best_speed = (
+        max((r["rows_per_second_all_together"] for r in parallel["results"]), default=4000)
+        if parallel
+        else (top10m or {}).get("rows_per_second", 4000)
+    )
     top_rate = max((r.get("requests_per_second", 0) for r in full), default=0)
     fans_head = ["Fans at once", "Path", "Requests per second", "Failed", "p95", "p99", "From cache"]
-    gates_head = ["Scans requested per second", "Tickets admitted per second", "Scans failed", "p50", "p95", "p99", "Tickets = outbox"]
+    gates_head = [
+        "Scans requested per second",
+        "Tickets admitted per second",
+        "Scans failed",
+        "p50",
+        "p95",
+        "p99",
+        "Tickets = outbox",
+    ]
     measured = f"""
 <h1>Measured</h1>
 <p class="lead">One run per scenario, on a laptop, on synthetic data, on {html.escape(str(next((r.get("measured") for r in full if r.get("measured")), "—")))}. These numbers show behaviour, not production capacity. The load generator shares the machine with the system. A first attempt ran while another program was rendering video on the same laptop, so it was discarded and repeated. Your numbers will differ, and every one has a script behind it.</p>
@@ -699,7 +1052,10 @@ def build() -> None:
     sections.append(page("measured", "Measured", measured))
 
     # ---- proof
-    proof = ["<h1>Proof it works</h1>", '<p class="lead">Passing tests only say the tests pass. So bugs were injected on purpose to see if the tests notice, and real things were killed in a real cluster.</p>']
+    proof = [
+        "<h1>Proof it works</h1>",
+        '<p class="lead">Passing tests only say the tests pass. So bugs were injected on purpose to see if the tests notice, and real things were killed in a real cluster.</p>',
+    ]
     if evidence:
         t = evidence["tests"]
         proof.append(f"""<div class="grid3">
@@ -711,21 +1067,52 @@ def build() -> None:
         for row in mutation["results"]:
             caught = row["caught_by"].split("::")[-1] if row["caught_by"] else ""
             target = tests.get(caught)
-            link = f'<a href="#code" data-file="{target}" data-find="def {caught}"><code>{caught}</code></a>' if target else f"<code>{html.escape(row['caught_by'] or '')}</code>"
-            rows.append([html.escape(row["bug"]), f'<code>{row["file"]}</code>', link if row["caught"] else '<span class="chip no">Not caught</span>'])
-        proof.append(f'<h2>Bugs injected on purpose</h2><p>Each row removes one guarantee from a copy of the code, then runs the whole test suite. <b>{mutation["caught"]} of {mutation["bugs_injected"]} were caught.</b> The first failing test is named.</p>' + table(["The bug", "File", "Caught by"], rows))
+            link = (
+                f'<a href="#code" data-file="{target}" data-find="def {caught}"><code>{caught}</code></a>'
+                if target
+                else f"<code>{html.escape(row['caught_by'] or '')}</code>"
+            )
+            rows.append(
+                [
+                    html.escape(row["bug"]),
+                    f"<code>{row['file']}</code>",
+                    link if row["caught"] else '<span class="chip no">Not caught</span>',
+                ]
+            )
+        proof.append(
+            f"<h2>Bugs injected on purpose</h2><p>Each row removes one guarantee from a copy of the code, then runs the whole test suite. <b>{mutation['caught']} of {mutation['bugs_injected']} were caught.</b> The first failing test is named.</p>"
+            + table(["The bug", "File", "Caught by"], rows)
+        )
     if k8s.get("worker_killed"):
         w, r = k8s["worker_killed"], k8s.get("rolling_restart_under_traffic", {})
-        proof.append(f"""<h2>A real Kubernetes run</h2>
-<p>{html.escape(k8s["cluster"])}, {k8s["measured"]}. One node, not production. <a href="#code" data-file="scripts/k8s_proof.py"><code>scripts/k8s_proof.py</code></a> does all of this and writes <a href="#code" data-file="docs/k8s-proof.json"><code>docs/k8s-proof.json</code></a>.</p>""" + table(["Scenario", "Result"], [
-            ["Deploy from nothing, with migrations", f'{k8s.get("deploy_seconds")} s'],
-            [f'Import worker pod force-deleted at row {n(w["checkpoint_row_when_killed"])} of {n(w["rows_in_file"])}', f'Finished by itself {w["seconds_until_finished_after_kill"]} s later, after {w["resume_count"]} automatic resume. {n(w["rows_read"])} rows read, {w["discrepancies"]} discrepancies'],
-            [f'Django rolling restart under traffic, {n(r.get("requests"))} requests', f'{r.get("failed")} failed. Replies: {html.escape(json.dumps(r.get("replies")))}'],
-            ["Metrics from inside", "Reachable" if k8s.get("metrics_from_inside") else "Not reachable"],
-            ["Metrics through the public edge", html.escape(k8s.get("metrics_through_public_edge", "—"))],
-            ["From an unrelated pod", html.escape(k8s.get("reachable_from_unrelated_pod", "—"))],
-            ["From a web pod", html.escape(k8s.get("reachable_from_web_pod", "—"))],
-        ]))
+        proof.append(
+            f"""<h2>A real Kubernetes run</h2>
+<p>{html.escape(k8s["cluster"])}, {k8s["measured"]}. One node, not production. <a href="#code" data-file="scripts/k8s_proof.py"><code>scripts/k8s_proof.py</code></a> does all of this and writes <a href="#code" data-file="docs/k8s-proof.json"><code>docs/k8s-proof.json</code></a>.</p>"""
+            + table(
+                ["Scenario", "Result"],
+                [
+                    ["Deploy from nothing, with migrations", f"{k8s.get('deploy_seconds')} s"],
+                    [
+                        f"Import worker pod force-deleted at row {n(w['checkpoint_row_when_killed'])} of {n(w['rows_in_file'])}",
+                        f"Finished by itself {w['seconds_until_finished_after_kill']} s later, after {w['resume_count']} automatic resume. {n(w['rows_read'])} rows read, {w['discrepancies']} discrepancies",
+                    ],
+                    [
+                        f"Django rolling restart under traffic, {n(r.get('requests'))} requests",
+                        f"{r.get('failed')} failed. Replies: {html.escape(json.dumps(r.get('replies')))}",
+                    ],
+                    [
+                        "Metrics from inside",
+                        "Reachable" if k8s.get("metrics_from_inside") else "Not reachable",
+                    ],
+                    [
+                        "Metrics through the public edge",
+                        html.escape(k8s.get("metrics_through_public_edge", "—")),
+                    ],
+                    ["From an unrelated pod", html.escape(k8s.get("reachable_from_unrelated_pod", "—"))],
+                    ["From a web pod", html.escape(k8s.get("reachable_from_web_pod", "—"))],
+                ],
+            )
+        )
     if evidence:
         by_file: dict[str, list] = {}
         for case in evidence["cases"]:
@@ -736,7 +1123,9 @@ def build() -> None:
                 f'<li><a href="#code" data-file="{file}" data-find="def {c["name"].split("[")[0]}">{html.escape(c["name"])}</a>{" (skipped)" if c["state"] == "skipped" else ""}{" <b>FAILED</b>" if c["state"] == "failed" else ""}</li>'
                 for c in cases
             )
-            items.append(f'<details class="q"><summary>{file}: {len(cases)} tests</summary><div class="a"><ul style="font-size:13.5px">{lines}</ul></div></details>')
+            items.append(
+                f'<details class="q"><summary>{file}: {len(cases)} tests</summary><div class="a"><ul style="font-size:13.5px">{lines}</ul></div></details>'
+            )
         proof.append("<h2>Every test</h2>" + "".join(items))
     sections.append(page("proof", "Proof it works", "".join(proof)))
 
@@ -750,15 +1139,26 @@ def build() -> None:
 <h2>One batch of the import</h2>
 {import_flow_svg()}
 <h2>What runs where</h2>
-{table(["Folder", "What it does"], [
-    ["<code>imports/</code>", "Streaming readers, validation, batch pipeline, reconciliation, rollback, go or no-go"],
-    ["<code>ticketing/</code>", "Reliability primitives, API client, cursor sync, webhooks, gate scans, offline uploads, outbox"],
-    ["<code>crm/</code>", "Contacts per organizer, legacy aliases, erasure ledger"],
-    ["<code>console/</code>", "The operator screens"],
-    ["<code>mock_api/</code>", "The stand-in ticketing API, with failures you can switch on"],
-    ["<code>deploy/</code>", "nginx, Gunicorn and the Kubernetes manifests"],
-    ["<code>scripts/</code>", "Demo scenario, measurements, bug injection, this pack"],
-])}
+{
+        table(
+            ["Folder", "What it does"],
+            [
+                [
+                    "<code>imports/</code>",
+                    "Streaming readers, validation, batch pipeline, reconciliation, rollback, go or no-go",
+                ],
+                [
+                    "<code>ticketing/</code>",
+                    "Reliability primitives, API client, cursor sync, webhooks, gate scans, offline uploads, outbox",
+                ],
+                ["<code>crm/</code>", "Contacts per organizer, legacy aliases, erasure ledger"],
+                ["<code>console/</code>", "The operator screens"],
+                ["<code>mock_api/</code>", "The stand-in ticketing API, with failures you can switch on"],
+                ["<code>deploy/</code>", "nginx, Gunicorn and the Kubernetes manifests"],
+                ["<code>scripts/</code>", "Demo scenario, measurements, bug injection, this pack"],
+            ],
+        )
+    }
 <h2>Data model</h2>
 <p>Generated from the Django models when this page was built.</p>
 {data_model()}
@@ -771,7 +1171,9 @@ def build() -> None:
     sections.append(doc_page("live-events", "live-events.md", "Fans and gates", file_set, tests))
     sections.append(doc_page("decisions", "decisions.md", "Decisions", file_set, tests))
     sections.append(doc_page("operations", "operations.md", "Operations", file_set, tests))
-    sections.append(doc_page("security-privacy", "security-privacy.md", "Security and privacy", file_set, tests))
+    sections.append(
+        doc_page("security-privacy", "security-privacy.md", "Security and privacy", file_set, tests)
+    )
     sections.append(doc_page("incident", "incident-gunicorn.md", "Incident review", file_set, tests))
     sections.append(doc_page("delivery", "delivery.md", "How I would work", file_set, tests))
 
@@ -793,12 +1195,18 @@ def build() -> None:
     # ---- questions
     questions = parse_questions(file_set, tests)
     groups = list(dict.fromkeys(q["group"] for q in questions))
-    q_filters = '<button type="button" data-group="All" aria-pressed="true">All</button>' + "".join(f'<button type="button" data-group="{g}" aria-pressed="false">{g}</button>' for g in groups)
+    q_filters = '<button type="button" data-group="All" aria-pressed="true">All</button>' + "".join(
+        f'<button type="button" data-group="{g}" aria-pressed="false">{g}</button>' for g in groups
+    )
     q_items = "".join(
         f'<details class="q" data-group="{q["group"]}"><summary>{html.escape(q["q"])}</summary><div class="a">{q["a"]}</div></details>'
         for q in questions
     )
-    sections.append(page("questions", "Questions", f"""
+    sections.append(
+        page(
+            "questions",
+            "Questions",
+            f"""
 <h1>Questions you may have</h1>
 <p class="lead">The questions a recruiter, a CTO, an engineer, operations and a DPO are likely to ask, each answered plainly, including when the answer is no.</p>
 <input class="search" id="q-search" type="search" placeholder="Search the questions" aria-label="Search the questions" autocomplete="off">
@@ -806,25 +1214,55 @@ def build() -> None:
 <p class="caveat" id="q-count"></p>
 {q_items}
 <div class="empty" id="q-empty" hidden>Nothing found. Try another word, or choose All.</div>
-"""))
+""",
+        )
+    )
 
     # ---- sources
-    names = ["migration-playbook.md", "live-events.md", "integration-contract.md", "operations.md", "security-privacy.md", "delivery.md", "how-it-was-built.md", "decisions.md"]
+    names = [
+        "migration-playbook.md",
+        "live-events.md",
+        "integration-contract.md",
+        "operations.md",
+        "security-privacy.md",
+        "delivery.md",
+        "how-it-was-built.md",
+        "decisions.md",
+    ]
     sources = external_sources(names)
-    rows = [[f'<a rel="noreferrer" target="_blank" href="{html.escape(u)}">{html.escape(label)}</a>', html.escape(where)] for label, u, where in sources]
-    sections.append(page("sources", "Sources", f"""
+    rows = [
+        [
+            f'<a rel="noreferrer" target="_blank" href="{html.escape(u)}">{html.escape(label)}</a>',
+            html.escape(where),
+        ]
+        for label, u, where in sources
+    ]
+    sections.append(
+        page(
+            "sources",
+            "Sources",
+            f"""
 <h1>Sources</h1>
 <p class="lead">Where the practice in this pack comes from. All were checked on 7 November 2026. These links need internet, and nothing else in this page does.</p>
 <p>Standards and vendor pages can change. Where I drew my own conclusion from them, the text says "my reading". No lawyer has reviewed the legal parts.</p>
 {table(["Source", "Used in"], rows)}
-"""))
+""",
+        )
+    )
 
     css = (HERE / "pack.css").read_text(encoding="utf-8")
     for name, data in fonts.items():
         family = "Geist Mono" if "mono" in name else "Geist"
-        css = f'@font-face{{font-family:"{family}";font-weight:100 900;font-display:swap;src:url("data:font/woff2;base64,{data}") format("woff2")}}\n' + css
+        css = (
+            f'@font-face{{font-family:"{family}";font-weight:100 900;font-display:swap;src:url("data:font/woff2;base64,{data}") format("woff2")}}\n'
+            + css
+        )
     js = (HERE / "pack.js").read_text(encoding="utf-8")
-    safe = lambda value: json.dumps(value, ensure_ascii=False).replace("</", "<\\/").replace("<!--", "\\u003c!--")  # noqa: E731
+
+    def safe(value: object) -> str:
+        """JSON that cannot close the surrounding script tag."""
+        return json.dumps(value, ensure_ascii=False).replace("</", "<\\/").replace("<!--", "\\u003c!--")
+
     page_html = f"""<!doctype html>
 <html lang="{LANG}">
 <head>
@@ -862,10 +1300,14 @@ def build() -> None:
     for word in FORBIDDEN:
         if word in lowered:
             start_at = lowered.index(word)
-            raise SystemExit(f"Forbidden word {word!r}: ...{lowered[max(0, start_at - 80):start_at + 60]}...")
+            raise SystemExit(
+                f"Forbidden word {word!r}: ...{lowered[max(0, start_at - 80) : start_at + 60]}..."
+            )
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(page_html, encoding="utf-8", newline="\n")
-    print(f"{OUT.name}: {OUT.stat().st_size / 1024 / 1024:.1f} MB; code {len(code)} files; zip {len(archive) // 1024} KB; video {len(video) * 3 // 4 // 1024} KB; {len(questions)} questions; {len(sources)} sources")
+    print(
+        f"{OUT.name}: {OUT.stat().st_size / 1024 / 1024:.1f} MB; code {len(code)} files; zip {len(archive) // 1024} KB; video {len(video) * 3 // 4 // 1024} KB; {len(questions)} questions; {len(sources)} sources"
+    )
 
 
 if __name__ == "__main__":

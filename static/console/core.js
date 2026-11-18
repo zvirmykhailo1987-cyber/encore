@@ -126,7 +126,8 @@ window.Encore = (function () {
     let body = null;
     try { body = await response.json(); } catch (e) { /* An error page is not JSON. The status still says enough. */ }
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) askToken();
+      // 401: no key or a revoked one, so ask. 403: the key works but its scope does not cover this screen.
+      if (response.status === 401) askToken();
       const text = body && (body.error || body.detail);
       throw new ApiError(response.status, text ? String(text) : "The server answered with status " + response.status + ".");
     }
@@ -144,7 +145,12 @@ window.Encore = (function () {
     } else {
       const since = lastOk ? " Showing data from " + lastOk.toLocaleTimeString("en-GB", { hour12: false }) + "." : "";
       const lost = !error || !error.status;
-      setText(bar, (lost ? "Connection lost." : "The server answered with an error (" + error.status + ").") + since + " Retrying every 2 seconds.");
+      const why = lost ? "Connection lost."
+        : error.status === 401 ? "This screen needs an API key."
+        : error.status === 403 ? "This API key cannot see this screen. A platform key can."
+        : error.status === 429 ? "Too many requests for this key."
+        : "The server answered with an error (" + error.status + ").";
+      setText(bar, why + since + " Retrying every 2 seconds.");
       bar.hidden = false;
     }
   }
@@ -233,7 +239,7 @@ window.Encore = (function () {
     });
     const open = $("token-open");
     if (open) {
-      const label = () => setText("token-state", token() ? "Token set" : "Operator token");
+      const label = () => setText("token-state", token() ? "Key set" : "API key");
       label();
       open.addEventListener("click", askToken);
       // Cancel is not a submit button, so Enter in the field means "Use token".

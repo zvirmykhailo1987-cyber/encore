@@ -38,3 +38,24 @@ def mock_server():
 def mock_api(mock_server):
     httpx.post(f"{mock_server}/_reset")
     return mock_server
+
+
+@pytest.fixture
+def platform_client(settings):
+    """An API client holding the platform key. The API is closed to callers without one."""
+    import secrets
+
+    from rest_framework.test import APIClient
+
+    settings.ENCORE_OPERATOR_TOKEN = secrets.token_urlsafe(24)
+    api = APIClient()
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {settings.ENCORE_OPERATOR_TOKEN}")
+    return api
+
+
+@pytest.fixture(autouse=True)
+def generous_rate_limits(monkeypatch):
+    """Tests share one Redis, so limits would carry over between tests. The limit test sets its own."""
+    from rest_framework.throttling import SimpleRateThrottle
+
+    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", {"key": "100000/min", "no-key": "100000/min"})

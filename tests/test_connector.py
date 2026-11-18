@@ -322,9 +322,9 @@ def test_scan_api_requires_the_operator_token_when_one_is_set(settings):
     apply_ticket_versions([("T1", "E", None, "valid", 1)])
     api = APIClient()
     data = {"ticket": "T1", "scan_id": str(uuid.uuid4())}
-    assert api.post("/api/v1/scans", data, format="json").status_code == 403
+    assert api.post("/api/v1/scans", data, format="json").status_code == 401
     assert (
-        api.post("/api/v1/scans", data, format="json", HTTP_AUTHORIZATION="Bearer wrong").status_code == 403
+        api.post("/api/v1/scans", data, format="json", HTTP_AUTHORIZATION="Bearer wrong").status_code == 401
     )
     assert (
         api.post("/api/v1/scans", data, format="json", HTTP_AUTHORIZATION="Bearer op-token").status_code
@@ -337,7 +337,7 @@ def test_writes_are_closed_outside_debug_when_no_token_is_set(settings):
     settings.ENCORE_OPERATOR_TOKEN = ""
     settings.DEBUG = False
     response = APIClient().post("/api/v1/scans", {"ticket": "T", "scan_id": "s"}, format="json")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.django_db
@@ -396,10 +396,10 @@ def test_every_request_lands_in_exactly_one_outcome(mock_api):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_health_reports_cursor_lag_and_breaker_detail(mock_api):
-    assert APIClient().get("/api/v1/connector/health").json()["cursor_lag"] is None, "Unknown is not zero"
+def test_health_reports_cursor_lag_and_breaker_detail(mock_api, platform_client):
+    assert platform_client.get("/api/v1/connector/health").json()["cursor_lag"] is None, "Unknown is not zero"
     sync_tickets(client_for(mock_api), max_pages=2, limit=100)
-    health = APIClient().get("/api/v1/connector/health").json()
+    health = platform_client.get("/api/v1/connector/health").json()
     feed = stats(mock_api)["feed_size"]
     assert health["feed_head"] == feed
     assert health["cursor_lag"] == feed - 200
@@ -409,7 +409,7 @@ def test_health_reports_cursor_lag_and_breaker_detail(mock_api):
 def test_fault_control_needs_operator_and_refuses_a_real_api(settings):
     settings.ENCORE_OPERATOR_TOKEN = "op"
     api = APIClient()
-    assert api.post("/api/v1/connector/faults", {"outage": True}, format="json").status_code == 403
+    assert api.post("/api/v1/connector/faults", {"outage": True}, format="json").status_code == 401
     settings.TICKETING_IS_MOCK = False
     reply = api.post(
         "/api/v1/connector/faults", {"outage": True}, format="json", HTTP_AUTHORIZATION="Bearer op"
@@ -422,11 +422,11 @@ def test_dead_letter_list_and_resolve(settings):
     settings.ENCORE_OPERATOR_TOKEN = "op"
     handle_webhook("bad", {"ticket": {"id": 5}})
     api = APIClient()
-    assert api.get("/api/v1/connector/dead-letters").status_code == 403
+    assert api.get("/api/v1/connector/dead-letters").status_code == 401
     rows = api.get("/api/v1/connector/dead-letters", HTTP_AUTHORIZATION="Bearer op").json()
     assert rows[0]["kind"] == "webhook"
     url = f"/api/v1/connector/dead-letters/{rows[0]['id']}/resolve"
-    assert api.post(url).status_code == 403
+    assert api.post(url).status_code == 401
     assert api.post(url, HTTP_AUTHORIZATION="Bearer op").status_code == 200
     assert api.post(url, HTTP_AUTHORIZATION="Bearer op").status_code == 404
     assert api.get("/api/v1/connector/dead-letters", HTTP_AUTHORIZATION="Bearer op").json() == []
@@ -440,7 +440,7 @@ def test_debug_machine_refuses_writes_from_another_website(settings):
     api = APIClient()
     data = {"ticket": "T", "scan_id": "s"}
     assert (
-        api.post("/api/v1/scans", data, format="json", HTTP_ORIGIN="http://evil.example").status_code == 403
+        api.post("/api/v1/scans", data, format="json", HTTP_ORIGIN="http://evil.example").status_code == 401
     )
     assert api.post("/api/v1/scans", data, format="json", HTTP_ORIGIN="http://testserver").status_code == 404
     assert api.post("/api/v1/scans", data, format="json").status_code == 404
@@ -464,9 +464,9 @@ def test_nul_byte_in_source_name_is_a_clean_refusal(settings, tmp_path):
     assert reply.status_code == 400
 
 
-def test_missing_source_folder_is_an_empty_list(settings, tmp_path):
+def test_missing_source_folder_is_an_empty_list(settings, tmp_path, platform_client):
     settings.ENCORE_IMPORT_SOURCE_DIR = tmp_path / "absent"
-    assert APIClient().get("/api/v1/imports/sources").json() == []
+    assert platform_client.get("/api/v1/imports/sources").json() == []
 
 
 @pytest.mark.django_db
@@ -497,3 +497,33 @@ def test_event_page_shows_numbers_sets_no_cookie_and_handles_unknown_events():
     empty = client.get("/events/NOTHING%3Cscript%3E")
     assert empty.status_code == 200
     assert "<script>" not in empty.content.decode()
+
+
+# ---------------------------------------------------------------- the scheduled tasks Celery beat runs
+
+
+@pytest.mark.django_db(transaction=True)
+def test_beat_sync_task_pulls_the_feed_and_publishes_breaker_and_metrics(mock_api, settings):
+    from ticketing.models import ConnectorState
+    from ticketing.tasks import sync_task
+
+    settings.TICKETING_BASE_URL = mock_api
+    result = sync_task()
+    assert result["caught_up"] and result["applied"] >= Ticket.objects.count() == 1000
+    assert ConnectorState.objects.get(name="ticketing").state == "closed"
+    assert ConnectorMetric.objects.exists(), "Every task run publishes its call metrics"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_beat_flush_task_delivers_pending_check_ins_once(mock_api, settings):
+    from ticketing.tasks import flush_task
+
+    settings.TICKETING_BASE_URL = mock_api
+    apply_ticket_versions([("T1", "E", None, "valid", 1), ("T2", "E", None, "valid", 1)])
+    scan_ticket("T1", "scan-1")
+    scan_ticket("T2", "scan-2")
+    result = flush_task()
+    assert result["sent"] == 2
+    assert OutboundCheckin.objects.filter(status="sent").count() == 2
+    assert flush_task()["sent"] == 0, "A second run finds nothing left to send"
+    assert stats(mock_api)["side_effects"] == 2

@@ -19,11 +19,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from access.audit import Audited
+from access.permissions import GateAccess, PlatformOnly, Public
 from mock_api.app import Faults
 
 from .models import ConnectorMetric, ConnectorState, DeadLetter, OutboundCheckin, SyncCursor
 from .resilience import CircuitBreaker, RetryPolicy
-from .security import OperatorToken, PersonalDataReader, webhook_is_authentic
+from .security import webhook_is_authentic
 from .services import apply_offline_scan, event_availability, event_manifest, handle_webhook, scan_ticket
 
 AVAILABILITY_TTL_SECONDS = 2
@@ -51,7 +53,7 @@ def ticketing_webhook(request: HttpRequest) -> JsonResponse:
 
 
 class ScanView(APIView):
-    permission_classes = [OperatorToken]
+    permission_classes = [GateAccess]
 
     def post(self, request: Request) -> Response:
         ticket, scan_id = request.data.get("ticket"), request.data.get("scan_id")
@@ -65,8 +67,8 @@ class ScanView(APIView):
         )
 
 
-class EventManifestView(APIView):
-    permission_classes = [PersonalDataReader]
+class EventManifestView(Audited, APIView):
+    permission_classes = [GateAccess]
 
     def get(self, request: Request, event: str) -> Response:
         try:
@@ -80,7 +82,12 @@ def _offline_scan_fields(item: object, latest: dt.datetime) -> tuple[str, str, d
     if not isinstance(item, dict):
         return None
     ticket, scan_id, raw_time = item.get("ticket"), item.get("scan_id"), item.get("scanned_at")
-    if not (isinstance(ticket, str) and 0 < len(ticket) <= 64 and isinstance(scan_id, str) and 0 < len(scan_id) <= 64):
+    if not (
+        isinstance(ticket, str)
+        and 0 < len(ticket) <= 64
+        and isinstance(scan_id, str)
+        and 0 < len(scan_id) <= 64
+    ):
         return None
     try:
         when = parse_datetime(raw_time) if isinstance(raw_time, str) else None
@@ -94,7 +101,7 @@ def _offline_scan_fields(item: object, latest: dt.datetime) -> tuple[str, str, d
 class OfflineScanUploadView(APIView):
     """A gate that was offline uploads what it decided. Safe to send again after a lost reply."""
 
-    permission_classes = [OperatorToken]
+    permission_classes = [GateAccess]
 
     def post(self, request: Request) -> Response:
         device, scans = request.data.get("device"), request.data.get("scans")
@@ -108,7 +115,9 @@ class OfflineScanUploadView(APIView):
             fields = _offline_scan_fields(item, latest)
             if fields is None:
                 scan_id = item.get("scan_id") if isinstance(item, dict) else None
-                results.append({"scan_id": scan_id if isinstance(scan_id, str) else None, "result": "rejected"})
+                results.append(
+                    {"scan_id": scan_id if isinstance(scan_id, str) else None, "result": "rejected"}
+                )
                 continue
             ticket, scan_id, when = fields
             results.append({"scan_id": scan_id, "result": apply_offline_scan(ticket, scan_id, device, when)})
@@ -136,6 +145,11 @@ def cached_availability(event: str) -> tuple[dict, bool]:
 
 class AvailabilityView(APIView):
     """The read everyone refreshes at once."""
+
+    permission_classes = [Public]
+    # Cached and refreshed by everyone at once. The edge, not a per-address limit, protects it.
+    authentication_classes: list = []
+    throttle_classes: list = []
 
     def get(self, request: Request, event: str) -> Response:
         data, cached = cached_availability(event)
@@ -177,8 +191,8 @@ def dead_letter_summary() -> list[dict]:
     return [{"kind": row["kind"], "count": row["count"]} for row in rows]
 
 
-class DeadLetterListView(APIView):
-    permission_classes = [PersonalDataReader]
+class DeadLetterListView(Audited, APIView):
+    permission_classes = [PlatformOnly]
 
     def get(self, request: Request) -> Response:
         rows = DeadLetter.objects.filter(resolved=False)[:100]
@@ -196,10 +210,10 @@ class DeadLetterListView(APIView):
         )
 
 
-class DeadLetterResolveView(APIView):
+class DeadLetterResolveView(Audited, APIView):
     """A person looked at this message and closed it. The record stays, marked resolved."""
 
-    permission_classes = [OperatorToken]
+    permission_classes = [PlatformOnly]
 
     def post(self, request: Request, pk: int) -> Response:
         updated = DeadLetter.objects.filter(pk=pk, resolved=False).update(resolved=True)
@@ -209,7 +223,7 @@ class DeadLetterResolveView(APIView):
 class DemoFaultsView(APIView):
     """Console control for the stand-in API. It can only ever reach the configured mock."""
 
-    permission_classes = [OperatorToken]
+    permission_classes = [PlatformOnly]
 
     def get(self, request: Request) -> Response:
         return self._forward("GET", None)
@@ -231,6 +245,8 @@ class DemoFaultsView(APIView):
 
 
 class ConnectorHealthView(APIView):
+    permission_classes = [PlatformOnly]
+
     def get(self, request: Request) -> Response:
         state = ConnectorState.objects.filter(name="ticketing").first()
         cursor = SyncCursor.objects.filter(name="tickets").first()

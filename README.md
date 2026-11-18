@@ -191,13 +191,36 @@ Evidence: [tests on Linux](docs/test-evidence.json), [injected bugs](docs/mutati
 | Variable | Purpose |
 |---|---|
 | `ENCORE_SECRET_KEY` | Required |
-| `ENCORE_OPERATOR_TOKEN` | Required for any write. With no token, writes are refused |
+| `ENCORE_OPERATOR_TOKEN` | Optional bootstrap platform key. Issue real keys with `manage.py api_key issue` |
+| `ENCORE_RATE_PER_KEY` | Calls per key, default `1200/min` |
+| `ENCORE_RATE_WITHOUT_KEY` | Calls per address without a valid key, default `60/min` |
+| `ENCORE_AUDIT_RETENTION_DAYS` | How long the personal-data access log is kept, default 90 |
 | `TICKETING_WEBHOOK_SECRET` | Required for webhooks. With no secret, every webhook is refused |
 | `ENCORE_ALLOWED_HOSTS` | Your domain, comma separated |
 | `ENCORE_HTTPS` | `1` behind a TLS proxy that sets `X-Forwarded-Proto` |
 | `POSTGRES_PASSWORD` | Database password |
 
-Reading quarantined rows, dead letters or a gate manifest needs the token too. Other reads are public, and one token sees every organizer. This version is for synthetic data only: do not load real customer data into it. Do not expose ports 8001, 8099, 5433 or 6380: the stand-in API has no authentication of its own.
+## Access
+
+Every API route needs a key, except event availability (what fans refresh) and the webhook, which is signed with HMAC instead. A test walks every route and fails if one answers without a key.
+
+| Key scope | Can do |
+|---|---|
+| `platform` | Everything: all organizers, the connector, dead letters |
+| `organizer` | That organizer's imports only. Another organizer's run answers 404, as if it did not exist |
+| `gate` | Scans, offline uploads and the gate manifest. No imports, no operations |
+
+```bash
+python manage.py api_key issue --scope organizer --organizer festival-a --name "Festival box office"
+python manage.py api_key list
+python manage.py api_key revoke <prefix>
+python manage.py api_key audit          # who read or changed personal data
+python manage.py api_key purge-audit    # drop records older than the retention period
+```
+
+The key is printed once and stored only as a SHA-256 digest. Keys are rate limited, and so is every address that calls without a valid key. Reads and changes of personal data are recorded with the key that made them. A developer machine with `ENCORE_DEBUG=1` and no keys at all stays open, but not to another website.
+
+This version is for synthetic data only. There are no personal user accounts: a key stands for a team or a device. Do not expose ports 8001, 8099, 5433 or 6380: the stand-in API has no authentication of its own.
 
 ## Tests
 
@@ -214,8 +237,8 @@ The tests run against real PostgreSQL. They include killing a real importer proc
 
 - Operation in production, or at scale beyond one machine
 - Kubernetes beyond one node
-- User accounts and per-organizer access: one operator token covers everything
+- Personal user accounts and single sign-on: keys stand for teams and devices
 - A scanner app: the server side of offline gates is built, the device side is not
 - Checkout, holds, payments and a waiting room
-- Real personal data: there is no access control or retention policy for it
+- Real personal data: access is controlled and logged, but retention of contact data and a DPIA are not done
 - Load beyond the measurements above

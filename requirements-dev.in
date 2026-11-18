@@ -5,3 +5,6 @@ mypy
 django-stubs
 types-requests
 locust
+pytest-cov
+pyyaml
+pip-audit

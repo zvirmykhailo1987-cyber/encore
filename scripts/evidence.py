@@ -31,20 +31,43 @@ echo "== junit"; base64 -w0 /tmp/junit.xml; echo
 
 def main() -> None:
     network = subprocess.run(
-        ["docker", "inspect", "-f", "{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}", "encore_mvp-db-1"],
-        capture_output=True, text=True, check=True,
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}",
+            "encore_mvp-db-1",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     done = subprocess.run(
         [
-            "docker", "run", "--rm", "--network", network,
-            "-v", f"{ROOT}:/src:ro",
-            "-e", "ENCORE_DEBUG=1",
-            "-e", "DATABASE_URL=postgres://encore:encore@db:5432/encore",
-            "-e", "REDIS_URL=redis://redis:6379/1",
-            "-e", "CELERY_BROKER_URL=redis://redis:6379/0",
-            "python:3.12-slim", "bash", "-c", INSIDE,
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            network,
+            "-v",
+            f"{ROOT}:/src:ro",
+            "-e",
+            "ENCORE_DEBUG=1",
+            "-e",
+            "DATABASE_URL=postgres://encore:encore@db:5432/encore",
+            "-e",
+            "REDIS_URL=redis://redis:6379/1",
+            "-e",
+            "CELERY_BROKER_URL=redis://redis:6379/0",
+            "python:3.12-slim",
+            "bash",
+            "-c",
+            INSIDE,
         ],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     output = done.stdout
     if "== junit" not in output:
@@ -62,7 +85,14 @@ def main() -> None:
             state = "failed"
         elif case.find("skipped") is not None:
             state = "skipped"
-        cases.append({"file": case.get("classname", "").replace(".", "/") + ".py", "name": case.get("name"), "state": state, "seconds": float(case.get("time", 0))})
+        cases.append(
+            {
+                "file": case.get("classname", "").replace(".", "/") + ".py",
+                "name": case.get("name"),
+                "state": state,
+                "seconds": float(case.get("time", 0)),
+            }
+        )
 
     def exit_of(name: str) -> int:
         found = re.search(rf"{name}_exit=(\d+)", head)
@@ -83,7 +113,10 @@ def main() -> None:
         },
         "checks": {name: exit_of(name) == 0 for name in ("ruff", "mypy", "migrations", "tests")},
         "coverage_percent": int(total.group(3)) if total else None,
-        "coverage_least": [{"file": f, "percent": int(p)} for f, _s, _m, p in sorted(coverage_rows, key=lambda r: int(r[3]))[:8]],
+        "coverage_least": [
+            {"file": f, "percent": int(p)}
+            for f, _s, _m, p in sorted(coverage_rows, key=lambda r: int(r[3]))[:8]
+        ],
         "audit_clean": exit_of("audit") == 0,
         "audit_output": section("audit").rsplit("audit_exit", 1)[0].strip(),
         "cases": cases,

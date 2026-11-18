@@ -3,13 +3,21 @@ info:
   title: Encore API
   version: 0.1.0
   description: >
-    The API of this demo. Writes need the operator token. So do reads that can contain personal data.
-    Errors are {"error": "..."}. /metrics, /healthz and /livez are outside this document.
+    The API of this demo. Every route needs an API key, except event availability and the signed webhook.
+    A key has one scope. platform: everything. organizer: that organizer's imports only, and another
+    organizer's run answers 404 as if it did not exist. gate: scans and the gate manifest.
+    A missing, unknown or revoked key is 401; a key without the scope is 403; too many calls is 429.
+    Reads and changes of personal data are written to an access log.
+    Errors are {"error": "..."} or {"detail": "..."}. /metrics, /healthz and /livez are outside this document.
 servers:
   - url: http://localhost:8000/api/v1
+security: [{apiKey: []}]
 components:
   securitySchemes:
-    operatorToken: {type: http, scheme: bearer}
+    apiKey:
+      type: http
+      scheme: bearer
+      description: "enc_<prefix>_<secret>, issued with `manage.py api_key issue`. Stored as a SHA-256 digest only."
   schemas:
     Error:
       type: object
@@ -65,17 +73,19 @@ paths:
   /imports/sources:
     get:
       summary: Files that can be imported
+      x-scope: "organizer or platform"
       responses: {"200": {description: Name and size of each file}}
   /imports/runs:
     get:
       summary: Latest 50 runs
+      x-scope: "organizer or platform"
       responses:
         "200":
           description: Runs
           content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Run"}}}}
     post:
       summary: Start an import
-      security: [{operatorToken: []}]
+      x-scope: "organizer or platform"
       requestBody:
         content:
           application/json:
@@ -89,16 +99,16 @@ paths:
       responses:
         "202": {description: Started}
         "400": {description: Unknown file or bad organizer}
-        "403": {description: Token missing}
   /imports/runs/{id}:
     get:
       summary: A run, with speed, time left, quarantine summary and recent batches
+      x-scope: "organizer or platform"
       parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
       responses: {"200": {description: Run}, "404": {description: Not found}}
   /imports/runs/{id}/{action}:
     post:
       summary: pause, resume, rollback or reconcile
-      security: [{operatorToken: []}]
+      x-scope: "organizer or platform"
       parameters:
         - {name: id, in: path, required: true, schema: {type: integer}}
         - {name: action, in: path, required: true, schema: {type: string, enum: [pause, resume, rollback, reconcile]}}
@@ -109,7 +119,7 @@ paths:
   /imports/runs/{id}/quarantine:
     get:
       summary: Broken rows, 200 per page, total in X-Total-Count
-      security: [{operatorToken: []}]
+      x-scope: "organizer or platform; logged"
       parameters:
         - {name: id, in: path, required: true, schema: {type: integer}}
         - {name: reason, in: query, schema: {type: string}}
@@ -118,11 +128,10 @@ paths:
         "200":
           description: Rows
           content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/QuarantineRow"}}}}
-        "403": {description: Token missing}
   /imports/quarantine/{id}/{action}:
     post:
       summary: retry with corrections, or dismiss
-      security: [{operatorToken: []}]
+      x-scope: "organizer or platform; logged"
       parameters:
         - {name: id, in: path, required: true, schema: {type: integer}}
         - {name: action, in: path, required: true, schema: {type: string, enum: [retry, dismiss]}}
@@ -133,7 +142,7 @@ paths:
   /scans:
     post:
       summary: A gate online. Admits a ticket once
-      security: [{operatorToken: []}]
+      x-scope: "gate or platform"
       requestBody:
         content:
           application/json:
@@ -149,7 +158,7 @@ paths:
   /scans/offline:
     post:
       summary: A gate uploads what it decided while offline
-      security: [{operatorToken: []}]
+      x-scope: "gate or platform"
       requestBody:
         content:
           application/json:
@@ -165,7 +174,7 @@ paths:
   /events/{event}/manifest:
     get:
       summary: What a gate downloads before the doors open. No personal data, 5,000 per page
-      security: [{operatorToken: []}]
+      x-scope: "gate or platform; logged"
       parameters:
         - {name: event, in: path, required: true, schema: {type: string}}
         - {name: after, in: query, schema: {type: integer}}
@@ -173,31 +182,34 @@ paths:
   /events/{event}/availability:
     get:
       summary: The read everyone refreshes. Cached for one second at the edge
+      security: []
       parameters: [{name: event, in: path, required: true, schema: {type: string}}]
       responses: {"200": {description: "issued, valid, checked_in. Supports ETag"}, "304": {description: Not modified}}
   /connector/health:
     get:
       summary: Breaker, cursor, outbox and call metrics
+      x-scope: "platform"
       responses: {"200": {description: Health}}
   /connector/faults:
     post:
       summary: Switch failures on the stand-in API. Refused when connected to a real one
-      security: [{operatorToken: []}]
+      x-scope: "platform"
       responses: {"200": {description: New settings}, "404": {description: Not the stand-in}}
   /connector/dead-letters:
     get:
       summary: Messages that need a person
-      security: [{operatorToken: []}]
+      x-scope: "platform; logged"
       responses: {"200": {description: Messages}}
   /connector/dead-letters/{id}/resolve:
     post:
       summary: Mark as handled
-      security: [{operatorToken: []}]
+      x-scope: "platform; logged"
       parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
       responses: {"200": {description: Resolved}, "404": {description: Not found or already resolved}}
   /webhooks/ticketing:
     post:
       summary: Ticket updates from the API, signed with HMAC-SHA256 over timestamp.body
+      security: []
       parameters:
         - {name: X-Timestamp, in: header, required: true, schema: {type: string}}
         - {name: X-Signature, in: header, required: true, schema: {type: string}}

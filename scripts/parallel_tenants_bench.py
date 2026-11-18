@@ -22,7 +22,9 @@ OUT = ROOT / "docs" / "benchmarks-parallel.json"
 
 
 def compose(*args: str) -> str:
-    return subprocess.run(["docker", "compose", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(
+        ["docker", "compose", *args], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
 
 
 def sql(statement: str) -> str:
@@ -64,7 +66,9 @@ def measure(organizers: int) -> dict:
         "statuses": sorted({run["status"] for run in runs}),
         "discrepancies": sum((run["reconciliation"] or {}).get("discrepancies", -1) for run in runs),
         "cross_organizer_merges": int(
-            sql("select count(*) from crm_contactalias a join crm_contact c on c.id=a.contact_id where a.organizer<>c.organizer")
+            sql(
+                "select count(*) from crm_contactalias a join crm_contact c on c.id=a.contact_id where a.organizer<>c.organizer"
+            )
         ),
     }
 
@@ -72,8 +76,18 @@ def measure(organizers: int) -> dict:
 def main() -> None:
     for index in range(4):
         compose(
-            "exec", "-T", "worker", "python", "manage.py", "gen_legacy",
-            "--rows", str(ROWS_EACH), "--out", f"data/parallel_{index}.csv", "--seed", str(100 + index),
+            "exec",
+            "-T",
+            "worker",
+            "python",
+            "manage.py",
+            "gen_legacy",
+            "--rows",
+            str(ROWS_EACH),
+            "--out",
+            f"data/parallel_{index}.csv",
+            "--seed",
+            str(100 + index),
         )
     results = []
     for workers, organizers in ((1, 1), (1, 2), (2, 4)):

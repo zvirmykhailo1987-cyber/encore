@@ -56,18 +56,34 @@ def wait_for(condition, timeout: float, what: str, every: float = 2.0):
 
 
 def main() -> None:
-    proof: dict = {"measured": dt.date.today().isoformat(), "cluster": f"Single-node k3s ({K3S_IMAGE}) in Docker Desktop"}
+    proof: dict = {
+        "measured": dt.date.today().isoformat(),
+        "cluster": f"Single-node k3s ({K3S_IMAGE}) in Docker Desktop",
+    }
     run("docker", "rm", "-f", CLUSTER, check=False)
     print("building image", flush=True)
     run("docker", "build", "-t", "encore:local", ".")
     # The volume keeps the cluster's own images, so a second run does not download them again.
     run(
-        "docker", "run", "-d", "--privileged", "--name", CLUSTER,
-        "-v", "encore-k3s-images:/var/lib/rancher/k3s/agent/containerd",
-        K3S_IMAGE, "server", "--disable=traefik", "--disable=metrics-server",
+        "docker",
+        "run",
+        "-d",
+        "--privileged",
+        "--name",
+        CLUSTER,
+        "-v",
+        "encore-k3s-images:/var/lib/rancher/k3s/agent/containerd",
+        K3S_IMAGE,
+        "server",
+        "--disable=traefik",
+        "--disable=metrics-server",
     )
     try:
-        wait_for(lambda: "Ready" in run("docker", "exec", CLUSTER, "kubectl", "get", "nodes", check=False), 180, "node")
+        wait_for(
+            lambda: "Ready" in run("docker", "exec", CLUSTER, "kubectl", "get", "nodes", check=False),
+            180,
+            "node",
+        )
         for image in ("encore:local", "postgres:17-alpine", "redis:7-alpine", "nginx:1.27-alpine"):
             print("loading", image, flush=True)
             tar = subprocess.run(["docker", "save", image], capture_output=True, check=True).stdout
@@ -75,16 +91,35 @@ def main() -> None:
         print("waiting for the cluster's DNS and storage", flush=True)
         for label in ("k8s-app=kube-dns", "app=local-path-provisioner"):
             wait_for(
-                lambda selector=label: run(
-                    "docker", "exec", CLUSTER, "kubectl", "-n", "kube-system", "get", "pods", "-l", selector,
-                    "-o", "jsonpath={.items[0].status.containerStatuses[0].ready}", check=False,
-                ).strip() == "true",
-                2400, label, 5,
+                lambda selector=label: (
+                    run(
+                        "docker",
+                        "exec",
+                        CLUSTER,
+                        "kubectl",
+                        "-n",
+                        "kube-system",
+                        "get",
+                        "pods",
+                        "-l",
+                        selector,
+                        "-o",
+                        "jsonpath={.items[0].status.containerStatuses[0].ready}",
+                        check=False,
+                    ).strip()
+                    == "true"
+                ),
+                2400,
+                label,
+                5,
             )
         run("docker", "cp", "deploy/k8s", f"{CLUSTER}:/manifests")
         run("docker", "exec", CLUSTER, "kubectl", "create", "namespace", "encore", check=False)
         kubectl(
-            "create", "secret", "generic", "encore-secrets",
+            "create",
+            "secret",
+            "generic",
+            "encore-secrets",
             f"--from-literal=ENCORE_SECRET_KEY={secrets.token_urlsafe(48)}",
             f"--from-literal=ENCORE_OPERATOR_TOKEN={TOKEN}",
             f"--from-literal=TICKETING_WEBHOOK_SECRET={secrets.token_urlsafe(32)}",
@@ -96,15 +131,23 @@ def main() -> None:
         for name in ("web", "worker", "worker-ticketing", "beat", "edge"):
             kubectl("rollout", "status", f"deploy/{name}", "--timeout=240s")
         proof["deploy_seconds"] = round(time.monotonic() - started)
-        proof["pods"] = kubectl("get", "pods", "--no-headers", "-o", "custom-columns=NAME:.metadata.labels.app,READY:.status.phase").split("\n")
+        proof["pods"] = kubectl(
+            "get",
+            "pods",
+            "--no-headers",
+            "-o",
+            "custom-columns=NAME:.metadata.labels.app,READY:.status.phase",
+        ).split("\n")
         print("deployed in", proof["deploy_seconds"], flush=True)
 
         # Metrics reach Prometheus but not the public, and the policy stops pods that have no business there.
-        metrics_inside = kubectl(
-            "exec", "deploy/edge", "--", "wget", "-qO-", "http://web:8000/metrics"
-        )
+        metrics_inside = kubectl("exec", "deploy/edge", "--", "wget", "-qO-", "http://web:8000/metrics")
         public = kubectl(
-            "exec", "deploy/edge", "--", "sh", "-c",
+            "exec",
+            "deploy/edge",
+            "--",
+            "sh",
+            "-c",
             "wget -S -qO- http://127.0.0.1/metrics 2>&1 | head -1",
         )
         proof["metrics_from_inside"] = "encore_outbox_pending" in metrics_inside
@@ -121,20 +164,33 @@ for host, port in (("db", 5432), ("redis", 6379), ("web", 8000)):
 print(results)
 """
         proof["reachable_from_unrelated_pod"] = pod_python("mock-ticketing", probe).strip()
-        proof["reachable_from_web_pod"] = pod_python("web", probe.replace('("web", 8000)', '("edge", 80)')).strip()
+        proof["reachable_from_web_pod"] = pod_python(
+            "web", probe.replace('("web", 8000)', '("edge", 80)')
+        ).strip()
 
         # An import, with its worker killed in the middle.
-        pod_python("worker", f"import subprocess; subprocess.run('python manage.py gen_legacy --rows {ROWS} --out data/k8s.csv', shell=True, check=True, stdout=subprocess.DEVNULL)")
+        pod_python(
+            "worker",
+            f"import subprocess; subprocess.run('python manage.py gen_legacy --rows {ROWS} --out data/k8s.csv', shell=True, check=True, stdout=subprocess.DEVNULL)",
+        )
         reply = api("POST", "/imports/runs", {"source": "k8s.csv", "organizer": "k8s-demo"})
         run_id = reply["body"]["id"]
-        wait_for(lambda: (api("GET", f"/imports/runs/{run_id}")["body"].get("progress") or 0) > 0.2, 300, "20% progress")
+        wait_for(
+            lambda: (api("GET", f"/imports/runs/{run_id}")["body"].get("progress") or 0) > 0.2,
+            300,
+            "20% progress",
+        )
         before = api("GET", f"/imports/runs/{run_id}")["body"]
         killed = time.monotonic()
         kubectl("delete", "pod", "-l", "app=worker", "--grace-period=0", "--force", check=False)
         print("worker killed at row", before["checkpoint_row"], flush=True)
         finished = wait_for(
-            lambda: (lambda r: r if r["status"] == "completed" else None)(api("GET", f"/imports/runs/{run_id}")["body"]),
-            900, "import to finish", 5,
+            lambda: (lambda r: r if r["status"] == "completed" else None)(
+                api("GET", f"/imports/runs/{run_id}")["body"]
+            ),
+            900,
+            "import to finish",
+            5,
         )
         report = finished["reconciliation"]
         proof["worker_killed"] = {
@@ -170,8 +226,22 @@ threads = [threading.Thread(target=loop) for _ in range(8)]
 print(json.dumps(counts))
 """
         load = subprocess.Popen(
-            ["docker", "exec", CLUSTER, "kubectl", "-n", "encore", "exec", "deploy/mock-ticketing", "--", "python", "-c", traffic],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            [
+                "docker",
+                "exec",
+                CLUSTER,
+                "kubectl",
+                "-n",
+                "encore",
+                "exec",
+                "deploy/mock-ticketing",
+                "--",
+                "python",
+                "-c",
+                traffic,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         time.sleep(8)
         restart_started = time.monotonic()
@@ -188,7 +258,9 @@ print(json.dumps(counts))
             "failed": total - counts.get("200", 0),
         }
         print(proof["rolling_restart_under_traffic"], err.decode()[-300:], flush=True)
-        proof["workers_after_kill"] = kubectl("get", "deploy", "worker", "-o", "jsonpath={.status.readyReplicas}")
+        proof["workers_after_kill"] = kubectl(
+            "get", "deploy", "worker", "-o", "jsonpath={.status.readyReplicas}"
+        )
     finally:
         OUT.write_text(json.dumps(proof, indent=2), encoding="utf-8", newline="\n")
         print(json.dumps(proof, indent=1), flush=True)

@@ -11,8 +11,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from access.audit import Audited
+from access.permissions import ImportsAccess, principal
 from crm.models import DEFAULT_ORGANIZER
-from ticketing.security import OperatorToken, PersonalDataReader
 
 from .mapping import RowDefect
 from .models import ImportBatch, ImportRun, QuarantineRow
@@ -35,9 +36,25 @@ class QuarantineSerializer(serializers.ModelSerializer):
         fields = ["id", "row_number", "reason", "detail", "raw", "status"]
 
 
-def resolve_source(name: str) -> Path | None:
-    """Sources are named relative to one folder. A request can never read an arbitrary server path."""
+def visible_runs(request: Request):
+    """An organizer key sees that organizer's runs only. Anything else answers 404, as if it did not exist."""
+    who = principal(request)
+    runs = ImportRun.objects.all()
+    return (
+        runs if who is not None and who.is_platform else runs.filter(organizer=who.organizer if who else None)
+    )
+
+
+def source_root(request: Request) -> Path:
+    """The platform sees the whole drop folder. An organizer sees its own subfolder only."""
     root = Path(settings.ENCORE_IMPORT_SOURCE_DIR).resolve()
+    who = principal(request)
+    return root if who is not None and who.is_platform else root / str(who.organizer if who else "-")
+
+
+def resolve_source(name: str, root: Path | None = None) -> Path | None:
+    """Sources are named relative to one folder. A request can never read an arbitrary server path."""
+    root = (root or Path(settings.ENCORE_IMPORT_SOURCE_DIR)).resolve()
     try:
         candidate = (root / name).resolve()
         return candidate if candidate.is_relative_to(root) and candidate.is_file() else None
@@ -46,16 +63,22 @@ def resolve_source(name: str) -> Path | None:
 
 
 class RunListView(APIView):
-    permission_classes = [OperatorToken]
+    permission_classes = [ImportsAccess]
 
     def get(self, request: Request) -> Response:
-        return Response(RunSerializer(ImportRun.objects.all()[:50], many=True).data)
+        return Response(RunSerializer(visible_runs(request)[:50], many=True).data)
 
     def post(self, request: Request) -> Response:
-        path = resolve_source(str(request.data.get("source", "")))
+        path = resolve_source(str(request.data.get("source", "")), source_root(request))
         if path is None:
             return Response({"error": "Unknown source file"}, status=400)
-        organizer = str(request.data.get("organizer") or DEFAULT_ORGANIZER)
+        who = principal(request)
+        requested = request.data.get("organizer")
+        if who is not None and not who.is_platform:
+            if requested and requested != who.organizer:
+                return Response({"error": "This key imports for its own organizer only"}, status=403)
+            requested = who.organizer
+        organizer = str(requested or DEFAULT_ORGANIZER)
         if not ORGANIZER.match(organizer):
             return Response({"error": "An organizer is lower case letters, digits, - and _"}, status=400)
         if path.name.endswith(".mongoexport.jsonl"):
@@ -121,15 +144,19 @@ def run_payload(run: ImportRun) -> dict:
 
 
 class RunDetailView(APIView):
+    permission_classes = [ImportsAccess]
+
     def get(self, request: Request, pk: int) -> Response:
-        return Response(run_payload(get_object_or_404(ImportRun, pk=pk)))
+        return Response(run_payload(get_object_or_404(visible_runs(request), pk=pk)))
 
 
 class SourceListView(APIView):
     """Files an operator can import, for the start form."""
 
+    permission_classes = [ImportsAccess]
+
     def get(self, request: Request) -> Response:
-        root = Path(settings.ENCORE_IMPORT_SOURCE_DIR)
+        root = source_root(request)
         if not root.is_dir():
             return Response([])
         files = sorted(p for p in root.iterdir() if p.is_file() and p.suffix in (".csv", ".jsonl"))
@@ -137,10 +164,10 @@ class SourceListView(APIView):
 
 
 class RunActionView(APIView):
-    permission_classes = [OperatorToken]
+    permission_classes = [ImportsAccess]
 
     def post(self, request: Request, pk: int, action: str) -> Response:
-        run = get_object_or_404(ImportRun, pk=pk)
+        run = get_object_or_404(visible_runs(request), pk=pk)
         if action == "pause":
             ImportRun.objects.filter(pk=pk, status=ImportRun.Status.RUNNING).update(pause_requested=True)
         elif action == "resume":
@@ -171,11 +198,12 @@ class RunActionView(APIView):
         return Response(RunSerializer(ImportRun.objects.get(pk=pk)).data)
 
 
-class QuarantineListView(APIView):
-    permission_classes = [PersonalDataReader]
+class QuarantineListView(Audited, APIView):
+    permission_classes = [ImportsAccess]
 
     def get(self, request: Request, pk: int) -> Response:
-        rows = QuarantineRow.objects.filter(run_id=pk)
+        run = get_object_or_404(visible_runs(request), pk=pk)
+        rows = QuarantineRow.objects.filter(run=run)
         reason = request.query_params.get("reason")
         if reason:
             rows = rows.filter(reason=reason)
@@ -188,11 +216,11 @@ class QuarantineListView(APIView):
         return Response(page, headers={"X-Total-Count": str(total)})
 
 
-class QuarantineActionView(APIView):
-    permission_classes = [OperatorToken]
+class QuarantineActionView(Audited, APIView):
+    permission_classes = [ImportsAccess]
 
     def post(self, request: Request, row_id: int, action: str) -> Response:
-        row = get_object_or_404(QuarantineRow, pk=row_id)
+        row = get_object_or_404(QuarantineRow.objects.filter(run__in=visible_runs(request)), pk=row_id)
         if action == "retry":
             corrected = request.data.get("corrected", {})
             if not isinstance(corrected, dict):

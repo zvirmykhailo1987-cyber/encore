@@ -1,10 +1,8 @@
 import hashlib
 import hmac
 import time
-from urllib.parse import urlsplit
 
 from django.conf import settings
-from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 WEBHOOK_TOLERANCE_SECONDS = 300
 
@@ -24,32 +22,3 @@ def webhook_is_authentic(body: bytes, timestamp: str, signature: str, now: float
     if age > WEBHOOK_TOLERANCE_SECONDS:
         return False
     return hmac.compare_digest(sign_webhook(secret, timestamp, body), signature)
-
-
-def _token_supplied(request) -> bool:
-    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    return hmac.compare_digest(supplied.encode(), settings.ENCORE_OPERATOR_TOKEN.encode())
-
-
-class PersonalDataReader(BasePermission):
-    """Reading rows that hold personal data needs the token as well. Debug machines stay open, as for writes."""
-
-    def has_permission(self, request, view) -> bool:
-        if not settings.ENCORE_OPERATOR_TOKEN:
-            return bool(settings.DEBUG)
-        return _token_supplied(request)
-
-
-class OperatorToken(BasePermission):
-    """Writes need the operator token. With no token set they are open only on a debug machine."""
-
-    def has_permission(self, request, view) -> bool:
-        if request.method in SAFE_METHODS:
-            return True
-        token = settings.ENCORE_OPERATOR_TOKEN
-        if not token:
-            # Open on a debug machine, but not to another website the operator happens to have open.
-            origin = request.headers.get("Origin")
-            same_site = not origin or urlsplit(origin).netloc == request.get_host()
-            return settings.DEBUG and same_site
-        return _token_supplied(request)

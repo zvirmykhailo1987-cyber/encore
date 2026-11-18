@@ -372,11 +372,9 @@ def test_quarantine_retry_cannot_write_into_a_run_that_is_not_live(tmp_path, sta
     assert Contact.objects.count() == 0
 
 
-def test_run_detail_reports_real_batches_and_speed(tmp_path):
-    from rest_framework.test import APIClient
-
+def test_run_detail_reports_real_batches_and_speed(tmp_path, platform_client):
     run = run_file(write(tmp_path, "".join(f"{i},u{i}@x.io,,,,,,\n" for i in range(1, 7))), batch_size=2)
-    body = APIClient().get(f"/api/v1/imports/runs/{run.pk}").json()
+    body = platform_client.get(f"/api/v1/imports/runs/{run.pk}").json()
     assert [batch["number"] for batch in body["batches"]] == [3, 2, 1]
     assert sum(batch["rows"] for batch in body["batches"]) == 6
     assert "lease_token" not in body
