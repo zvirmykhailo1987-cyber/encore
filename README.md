@@ -10,7 +10,7 @@ Built with Django, PostgreSQL, Celery and Redis. An operator console shows every
 
 ![A finished import run in the console](docs/shots/3-completed.png)
 
-A recording of the whole scenario is in [docs/demo.webm](docs/demo.webm). `dist/Encore-Pack.html`, built by `scripts/build_pack.py`, carries the program, the code and all the material in one file that opens with no server.
+A recording of the whole scenario (`demo.webm`) and `Encore-Pack.html`, one file with the program, the code and all the material that opens with no server, are attached to the [latest release](../../releases/latest). They are kept out of git to keep the clone small; `python scripts/record_demo.py` and `python scripts/build_pack.py` rebuild them.
 
 ## What it proves
 
@@ -242,3 +242,7 @@ The tests run against real PostgreSQL. They include killing a real importer proc
 - Checkout, holds, payments and a waiting room
 - Real personal data: access is controlled and logged, but retention of contact data and a DPIA are not done
 - Load beyond the measurements above
+
+## License
+
+MIT, see [LICENSE](LICENSE). All data in this repository is synthetic.

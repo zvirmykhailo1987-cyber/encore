@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "test-evidence.json"
 INSIDE = r"""
 set -u
-cp -r /src /work && cd /work
+# Code only: the data folder and a local virtual environment would add gigabytes and nothing to test.
+mkdir /work && tar -C /src --exclude=./.venv --exclude=./data --exclude=./dist --exclude='./docs/*.webm' --exclude=./.git -cf - . | tar -C /work -xf - && cd /work
 pip install -q --root-user-action=ignore -r requirements-dev.lock coverage pip-audit >/dev/null
 echo "== python"; python --version; uname -sr
 echo "== ruff"; ruff check . && ruff format --check . ; echo "ruff_exit=$?"
@@ -51,6 +52,8 @@ def main() -> None:
             network,
             "-v",
             f"{ROOT}:/src:ro",
+            "-v",
+            "encore-pipcache:/root/.cache/pip",
             "-e",
             "ENCORE_DEBUG=1",
             "-e",

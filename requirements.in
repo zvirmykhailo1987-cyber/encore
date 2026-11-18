@@ -1,10 +1,12 @@
-Django>=5.2,<5.3
-djangorestframework
-celery[redis]
-redis
-psycopg[binary]
-dj-database-url
-httpx
-gunicorn
-starlette
-uvicorn
+# Direct dependencies with the range each one is tested in. requirements.txt pins the exact versions.
+Django>=5.2,<5.3  # LTS line
+djangorestframework>=3.18,<3.19
+celery[redis]>=5.7,<5.8
+redis>=8.1,<9
+psycopg[binary]>=3.3,<3.4
+dj-database-url>=3.1,<4
+httpx>=0.28,<0.29
+# deploy/gunicorn.conf.py patches gthread internals of this major version; review before moving past it.
+gunicorn>=26.2,<27
+starlette>=1.10,<2  # stand-in ticketing API only
+uvicorn>=0.54,<0.55  # stand-in ticketing API only
