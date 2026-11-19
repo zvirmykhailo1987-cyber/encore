@@ -109,7 +109,7 @@ Plans on 10 million rows are in `docs/query-plans.txt`. A test checks that query
 See the table in [How I would work](#delivery): concurrent indexes, nullable first, batched backfill, contract later. This repo's own `crm/migrations/0003_tenants_erasure_offline.py` swaps a unique constraint in one step, which would be wrong on a large table.
 
 ### How do you enforce tenant isolation, and which test fails if a filter is missing?
-Each lookup filters by organizer, and uniqueness includes it. Bug injection removes those filters and records which test fails: see the evidence section. It is application-level only, with no row-level security in the database, and the console does not separate organizers, because it has one token.
+Each lookup filters by organizer, and uniqueness includes it. Bug injection removes those filters and records which test fails: see the evidence section. It is application-level only, with no row-level security in the database. API keys are scoped (platform, organizer, gate): an organizer key sees only its own organizer, and another organizer's objects return 404.
 
 ### What happens to the edge cache when it expires under a spike, and after the lock timeout?
 One request refreshes, in the background, while the rest get the stale copy. A request that waits past the 3 s lock timeout goes to Django, and its reply is not cached. See [Live events](#live-events).
