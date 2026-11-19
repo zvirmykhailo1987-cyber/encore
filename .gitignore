@@ -12,7 +12,7 @@ docs/design/
 .ruff_cache/
 dist/
 docs/replay.json
-docs/demo-small.webm
+docs/*.webm
 scripts/pack_uk/
 scripts/build_pack_uk.py
 docs/uk/
