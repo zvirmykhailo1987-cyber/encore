@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """How far does running organizers side by side help? Writes docs/benchmarks-parallel.json.
 
 One organizer at a time is safe but slow when thousands are waiting. Here N organizers import the same number of rows

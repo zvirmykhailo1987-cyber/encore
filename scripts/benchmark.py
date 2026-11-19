@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Measure the running Compose stack and write docs/benchmarks.json. Every published number comes from here.
 
     python scripts/benchmark.py import 1000000

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Sync, webhook handling, check-in and delivery. Each one commits its data and progress together."""
 
 import datetime as dt

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Reliability primitives with no I/O of their own. Clock and random source are injected for exact tests."""
 
 import random

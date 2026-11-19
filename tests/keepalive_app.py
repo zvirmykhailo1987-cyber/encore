@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """A tiny WSGI app for driving a real Gunicorn in tests. It reads part of the body, like many views do."""
 
 

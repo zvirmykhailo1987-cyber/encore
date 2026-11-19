@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Mykhailo Zvir
 // Runs before the console's own scripts. Answers its API calls from a recording, so the real pages run with no server.
 (function () {
   "use strict";

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
 # How long does Django stay unresponsive after a flood that bypasses the edge?
 # Usage: bash scripts/recovery_probe.sh [fans] [seconds at peak] [longest wait]
 set -uo pipefail

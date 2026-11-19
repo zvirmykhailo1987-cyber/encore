@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Break the code on purpose and check that the tests notice. Writes docs/mutation-results.json.
 
 Coverage says a line ran. This says a test fails when the line is wrong. Each mutation removes one guarantee from a

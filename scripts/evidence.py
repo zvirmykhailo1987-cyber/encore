@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Run what CI runs, on Linux, in a clean container, and write docs/test-evidence.json.
 
 Installs from the lock file, then runs lint, types, migration check, tests with coverage, and a dependency audit.

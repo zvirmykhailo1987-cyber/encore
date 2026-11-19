@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Whether one organizer can be switched to the new CRM. Every check is read from the database."""
 
 from crm.models import Contact

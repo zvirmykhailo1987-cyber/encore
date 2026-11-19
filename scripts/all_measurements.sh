@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
 # Every published measurement, on the current code, in one go. About two hours on a laptop.
 # Usage: bash scripts/all_measurements.sh
 set -uo pipefail

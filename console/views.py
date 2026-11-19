@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Page shells for the operator console. Every number on screen is fetched from the JSON API by the browser."""
 
 import json

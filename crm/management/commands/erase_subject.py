@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Erase one person from one organizer, and stop later imports from bringing them back."""
 
 import json

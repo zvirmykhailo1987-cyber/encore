@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Run the Kubernetes manifests on a real single-node cluster (k3s in Docker) and write docs/k8s-proof.json.
 
 It deploys everything, kills the import worker mid-run, restarts Django under traffic, and tries to reach the database

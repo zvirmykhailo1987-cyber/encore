@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Build dist/Encore-Pack.html: one file that opens by double click and carries the program, the code and the material.
 
 Numbers come from the result files in docs/, never typed here. It stops if a test named in the text does not exist,

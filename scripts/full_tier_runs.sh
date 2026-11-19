@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
 # Repeat every spike on the full stack. Results replace those in docs/benchmarks.json.
 # Usage: bash scripts/run_benchmarks.sh --stack-only bash scripts/full_tier_runs.sh
 set -uo pipefail

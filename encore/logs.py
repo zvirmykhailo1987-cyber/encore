@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """One JSON object per log line, so a log system can search fields rather than parse sentences."""
 
 import datetime as dt

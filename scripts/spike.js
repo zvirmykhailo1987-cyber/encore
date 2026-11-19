@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Mykhailo Zvir
 // Doors open. Thousands of fans keep refreshing the event page while the gates scan tickets.
 //
 // TARGET    base URL, for example http://edge or http://web:8000

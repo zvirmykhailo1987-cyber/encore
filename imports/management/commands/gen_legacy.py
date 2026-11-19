@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Generate a synthetic legacy CRM export with known defects and a manifest of what was injected."""
 
 import csv

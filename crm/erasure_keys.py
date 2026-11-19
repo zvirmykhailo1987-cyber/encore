@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """How an erased person is recognised. Separate from crm.erasure so the importer can use it without a cycle."""
 
 import hashlib

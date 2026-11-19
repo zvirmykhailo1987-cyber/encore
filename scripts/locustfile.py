@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Doors open: gates scan tickets while everyone else refreshes the event page."""
 
 import itertools

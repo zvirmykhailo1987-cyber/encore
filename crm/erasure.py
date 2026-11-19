@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Erasure requests that arrive while a migration is still running.
 
 A person can ask to be erased after the export was taken. Deleting the contact is not enough: the next re-run of

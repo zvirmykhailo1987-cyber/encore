@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Mykhailo Zvir
 // Shared helpers. Rule for every page: API data enters the DOM only as text nodes or attribute values set
 // through these functions. Nothing here or in the page scripts assigns HTML from a string.
 window.Encore = (function () {

@@ -246,4 +246,4 @@ The tests run against real PostgreSQL. They include killing a real importer proc
 
 ## License
 
-MIT, see [LICENSE](LICENSE). All data in this repository is synthetic.
+MIT © 2026 Mykhailo Zvir, see [LICENSE](LICENSE). Keep the copyright notice in copies and derived work. All data in this repository is synthetic.

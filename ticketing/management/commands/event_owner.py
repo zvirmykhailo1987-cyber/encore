@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Record which organizer an event belongs to. Gate keys of that organizer then see its tickets."""
 
 import re

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Issue, list and revoke API keys. The plaintext is printed once, at issue time, and never stored."""
 
 import datetime as dt

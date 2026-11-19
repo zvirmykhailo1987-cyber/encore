@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Profile one import on a scratch database. Usage: python scripts/profile_import.py <rows>"""
 
 import cProfile

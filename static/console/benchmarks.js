@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Mykhailo Zvir
 // Charts of the numbers in docs/benchmarks.json. The tables on the page carry the same values without script.
 (function () {
   "use strict";

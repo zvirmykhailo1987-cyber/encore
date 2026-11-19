@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 import random
 
 from ticketing.resilience import CircuitBreaker, RetryPolicy, TokenBucket

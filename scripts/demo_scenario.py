@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """The five minute demo, as a script: kill the worker during an import, resume, then break the ticketing API.
 
 Run it against the Compose stack: python scripts/demo_scenario.py [--rows 300000]

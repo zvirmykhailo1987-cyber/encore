@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """API keys. Each key belongs to one scope; an organizer key sees one organizer's data and nothing else."""
 
 import hashlib

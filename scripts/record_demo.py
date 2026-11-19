@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Record the five minute demo as a video, from the real console against the real stack.
 
 Needs Playwright with Chromium: pip install playwright, then playwright install chromium.

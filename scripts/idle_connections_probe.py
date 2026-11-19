@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Do connections that send nothing stop Django from answering real requests?
 
 Opens idle connections straight to Gunicorn, then times one normal request. Exits 1 if it took over LIMIT seconds.

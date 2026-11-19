@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Measure refresh spikes with k6 and add the results to docs/benchmarks.json.
 
 Needs the stack running with production settings: bash scripts/run_benchmarks.sh --stack-only

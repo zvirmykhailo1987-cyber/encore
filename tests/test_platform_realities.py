@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """What a multi-tenant live-events platform needs beyond a clean import: tenants, erasure, offline gates, operations."""
 
 import datetime as dt

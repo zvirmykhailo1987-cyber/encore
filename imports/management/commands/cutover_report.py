@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Print the go or no-go report for one organizer. Exit code 1 means no-go, so a pipeline can stop on it."""
 
 import json

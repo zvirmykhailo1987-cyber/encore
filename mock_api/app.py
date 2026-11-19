@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """A stand-in for an external ticketing API, with failures you can switch on during a demo.
 
 It holds a feed of ticket versions: every ticket once, then later updates to some of them. Check-ins record

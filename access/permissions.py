@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Every API view is closed unless it names who may call it. The default in settings is Authenticated."""
 
 from rest_framework.permissions import BasePermission

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Mykhailo Zvir
+
 (function () {
   "use strict";
   const { setAttr, setHidden, $, h, s, icon, setText, setKids, setNum, num, isNum, bytes, duration, clock, niceMax, api, poll, toast,

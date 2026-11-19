@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Rate limits per key, and per address for callers with no valid key. Limits live in settings."""
 
 from rest_framework.throttling import SimpleRateThrottle

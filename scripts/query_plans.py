@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Record query plans for the heaviest paths, on whatever the database holds now. Writes docs/query-plans.txt.
 
 Run right after a large import, so the tables are full.

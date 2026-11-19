@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Legacy export columns to contact fields, and validation of one row.
 
 A column missing from COLUMN_MAP is reported as unmapped. It is never guessed into a field.

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Prometheus text format, read from the database.
 
 Gauges come from shared state, so it does not matter which Gunicorn worker answers a scrape. The edge refuses this

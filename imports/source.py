@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Streaming source reader. Memory stays flat and every record reports the byte offset where it ends.
 
 csv.reader pulls lines only as it needs them, so the byte count after each record is an exact restart

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """HTTP client for the external ticketing API. All reliability decisions live here."""
 
 import datetime as dt

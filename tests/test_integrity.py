@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Guarantees an independent review found broken or unproven, each pinned by a test that fails without its fix."""
 
 import datetime as dt

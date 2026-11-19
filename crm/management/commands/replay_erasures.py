@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Apply the erasure ledger again after a restore. --ledger reads the copy kept outside the database, --dump writes it."""
 
 import json

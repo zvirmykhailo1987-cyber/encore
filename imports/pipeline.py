@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """The import run: one transaction per batch, with rows, counters and checkpoint committed together.
 
 A process can die at any instruction. Either a batch and its checkpoint are both durable, or neither is,

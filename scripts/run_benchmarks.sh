@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
 # Run all measurements against the stack in production settings (DEBUG off, token on).
 # Usage: bash scripts/run_benchmarks.sh [rows ...]   Default: 1000000 10000000
 set -euo pipefail

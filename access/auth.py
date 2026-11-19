@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Who is calling. A missing key is 401, a wrong or revoked key is 401, never a silent pass."""
 
 import datetime as dt

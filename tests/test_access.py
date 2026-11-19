@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Mykhailo Zvir
+
 """Who may call what. Every API route is closed unless it is named here as public."""
 
 import re
