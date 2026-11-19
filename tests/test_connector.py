@@ -89,18 +89,22 @@ def test_rate_limiting_does_not_trip_the_breaker(mock_api):
 
 def test_outage_opens_breaker_and_stops_traffic_then_recovers(mock_api):
     faults(mock_api, outage=True)
-    breaker = CircuitBreaker(failure_threshold=3, reset_timeout=1.5)
+    # The breaker reads a manual clock, so a slow machine cannot let the reset timeout run out
+    # between the two outage calls, and the recovery does not wait on a real sleep.
+    now = [1000.0]
+    breaker = CircuitBreaker(failure_threshold=3, reset_timeout=15, clock=lambda: now[0])
     client = client_for(mock_api, breaker=breaker, policy=RetryPolicy(max_attempts=10, base_delay=0.001))
     with pytest.raises(CircuitOpen):
         client.fetch_tickets("")
     sent = stats(mock_api)["requests"]
     assert sent == 3
+    now[0] += 14.9
     with pytest.raises(CircuitOpen):
         client.fetch_tickets("")
     assert stats(mock_api)["requests"] == sent, "An open breaker must not send anything"
 
     faults(mock_api)
-    time.sleep(1.6)
+    now[0] += 0.1
     assert "items" in client.fetch_tickets("", 5)
     assert breaker.state == "closed"
 
